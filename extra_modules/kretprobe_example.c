@@ -71,8 +71,8 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 }
 
 static struct kretprobe my_kretprobe = {
-	.handler		= ret_handler,
-	.entry_handler		= entry_handler,
+	.handler		= ret_handler,		//出口时调用
+	.entry_handler	= entry_handler,	//入口时调用
 	.data_size		= sizeof(struct my_data),
 	/* Probe up to 20 instances concurrently. */
 	.maxactive		= 20,
