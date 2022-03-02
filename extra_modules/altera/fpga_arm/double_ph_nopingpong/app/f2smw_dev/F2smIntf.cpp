@@ -11,10 +11,20 @@
 #include "alt_f2sm_regs.h"
 
 
-#define FPGAW_DEV "/dev/fpgaw_ram"
+#define UP_DEV	 "/dev/up_dev"
+#define DOWN_DEV "/dev/down_dev"
+
+
+#define MEM_PHY_UP 0x30000000
+#define MEM_PHY_UP_SIZE 0x02000000
+#define MEM_PHY_DOWN 0x32000000
+#define MEM_PHY_DOWN_SIZE 0x02000000
+#define PH1_OFFSET 0x01000000
+
 
 CF2smIntf::CF2smIntf():
-m_fd(-1),
+up_fd(-1),
+down_fd(-1),
 virtual_base(NULL)
 {
     //memset(mem_info, 0, sizeof(f2sm_mem_info_t) * F2SM_MEM_NUMS);
@@ -25,6 +35,7 @@ CF2smIntf::~CF2smIntf()
 
 }
 
+#if 0
 void CF2smIntf::Init()
 {
     int fd = open(FPGAW_DEV, /*O_RDONLY*/O_RDWR);
@@ -62,6 +73,78 @@ void CF2smIntf::Init()
 
     close(fd);
 }
+#endif
+
+void CF2smIntf::Init()
+{
+    int fd;
+	
+	fd = open(UP_DEV, O_RDWR);
+    if (fd < 0) {
+        fprintf(stderr, "open: %s\n", strerror(errno));
+        exit(-1);
+    }
+    up_fd = fd;
+
+    fd = open(DOWN_DEV, O_RDWR);
+    if (fd < 0) {
+        fprintf(stderr, "open: %s\n", strerror(errno));
+		close(up_fd);
+        exit(-1);
+    }
+    down_fd = fd;
+
+
+	if ((fd = open("/dev/mem", O_RDWR | O_SYNC)) == -1) {
+		fprintf(stderr, "Error at line %d, file %s (%d) [%s]\n", __LINE__, __FILE__, errno, strerror(errno));
+        close(down_fd);
+		close(up_fd);
+		exit(-1);
+    }
+
+    mem_info[0].raw_addr = (void *)MEM_PHY_UP;
+    mem_info[0].mem_size = MEM_PHY_UP_SIZE;
+
+    mem_info[1].raw_addr = (void *)MEM_PHY_DOWN;
+    mem_info[1].mem_size = MEM_PHY_DOWN_SIZE;
+
+    //-----GENERATE ADRESSES TO ACCESS FPGA MEMORY AND DMACS FROM PROCESSOR-----//
+    virtual_base = mmap(NULL, MMAP_SPAN, (PROT_READ | PROT_WRITE), MAP_SHARED, fd, MMAP_BASE);
+    if (virtual_base == MAP_FAILED) {
+        close(fd);
+        close(down_fd);
+		close(up_fd);
+        exit(-1);
+    }
+
+    close(fd);
+}
+
+
+void CF2smIntf::Close()
+{
+    if (virtual_base) {
+        // ------clean up our memory mapping and exit -------//
+        if (munmap( virtual_base, MMAP_SPAN ) != 0) {
+            printf( "ERROR: munmap() failed...\n" );
+            if (down_fd != -1)
+                close(down_fd);
+            down_fd = -1;			
+            if (up_fd != -1)
+                close(up_fd);
+            up_fd = -1;
+            return;
+        }
+        virtual_base = NULL;
+    }
+	if (down_fd != -1)
+		close(down_fd);
+	down_fd = -1;			
+	if (up_fd != -1)
+		close(up_fd);
+	up_fd = -1;
+}
+
 
 
 void CF2smIntf::testinit()
@@ -93,6 +176,7 @@ void CF2smIntf::ResetCounter()
 
 }
 
+#if 0
 void CF2smIntf::Close()
 {
 #if 0    
@@ -122,22 +206,23 @@ void CF2smIntf::Close()
     }
     m_fd = -1;
 }
+#endif
 
 // After data is filled in mem
-void CF2smIntf::StartTransfer(int seed, int shot_count)   // n * 12KB, 16bit valid
+void CF2smIntf::StartTransfer_up_seed(int seed, int blk_count)   // n * 12KB, 16bit valid
 {
     void * reg_addr =  NULL;
 
 	/* ph1起始地址 */
     reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, 8); 
-    alt_write_word(reg_addr,  (unsigned int)((unsigned char *)mem_info[0].raw_addr));
+    alt_write_word(reg_addr, (unsigned int)((unsigned char *)mem_info[0].raw_addr));
 	/* ph2起始地址 */
     reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, 10); 
-    alt_write_word(reg_addr,  (unsigned int)((unsigned char *)mem_info[1].raw_addr));	
+    alt_write_word(reg_addr, (unsigned int)((unsigned char *)mem_info[0].raw_addr + PH1_OFFSET));	
 
 	/* ph1和ph2 dma空间块的大小 */
     reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, 7);
-    alt_write_word(reg_addr,  shot_count&0xFFFF); 
+    alt_write_word(reg_addr,  blk_count&0xFFFF); 
 
 
 	/* ph1种子 */

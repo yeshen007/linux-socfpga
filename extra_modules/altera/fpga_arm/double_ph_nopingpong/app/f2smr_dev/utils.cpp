@@ -98,7 +98,7 @@ uint32_t GenPrbsNum(uint32_t seed)
 void GenPrbsArray(uint32_t seed, uint32_t channel, uint32_t *pDataBuf, int bufsize)
 {
 	uint32_t *pBuf = NULL;
-	for(int i=0; i< channel; i++)
+	for(int i=0; i< (int)channel; i++)
 	{
 		*(pDataBuf+i) = GenPrbsNum(seed +i);
 	}

@@ -179,12 +179,11 @@ void fix_do_test(CF2smIntf &f2sm, char *pDataBuf)
 {
     int frb_size = 3*1024;
     int frb_count = 1024;
-	int onekb_frb_size = 1024;
 	int onekb_frb_count = 1024 * 3;
     int blk_size = frb_size * frb_count;       // 3M
     int nInt =  blk_size/4;
 	int nByte = 8*1024*1024;  // max,要大于3M	
-    int the_fd = f2sm.m_fd;
+    int the_fd = f2sm.up_fd;
 
     f2sm.testinit();
 
@@ -207,11 +206,10 @@ void fix_do_test(CF2smIntf &f2sm, char *pDataBuf)
 
 	f2sm.ResetCounter();
 	/* 告诉fpga种子，hps dma地址和要写的大小，然后启动 */
-    f2sm.StartTransfer(seed, onekb_frb_count);
+    f2sm.StartTransfer_up_seed(seed, onekb_frb_count);
 
 
 	while (1) {
-		
         memset(pDataBuf, 0, blk_size);			
         /* 把fpga写到hps ddr(物理地址0x31000000和0x31800000)的数据读到pDataBuf */
 		int nRead = read(the_fd, pDataBuf, blk_size);
@@ -237,7 +235,7 @@ void fix_do_test(CF2smIntf &f2sm, char *pDataBuf)
             GenPrbsArray(seed, 4, pPRBSBuf, nInt);
    
 			/* 告诉fpga按照seed生成数据写到hps ddr */
-            f2sm.StartTransfer(seed, onekb_frb_count);
+            f2sm.StartTransfer_up_seed(seed, onekb_frb_count);
         }else {
             printf("Read error!\n");
             break;
@@ -253,7 +251,6 @@ void fix_do_test(CF2smIntf &f2sm, char *pDataBuf)
 
 int fix_f2sm_write_test(void)
 {
-
     srand((unsigned)time(NULL));
     int nByte = 30*1024*1024;
     char *pDataBuf = (char *)aligned_alloc(4096,nByte); // 30MB
@@ -262,7 +259,6 @@ int fix_f2sm_write_test(void)
         fprintf(stderr, "alloc buf for data failed!\n");
         exit(-1);
     }
-
 
     CF2smIntf f2sm;
     f2sm.Init();

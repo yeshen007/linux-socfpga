@@ -32,12 +32,12 @@ public:
 	void testinit();
     void Init();
     void Close();
-    void StartTransfer(int mem_index, unsigned int seed1, unsigned int seed2, int shot_count);
+    void StartTransfer_down_seed(unsigned int seed1, unsigned int seed2, int blk_count);
     bool CheckResult(u_int32_t u32WantLen);
-
     void ResetCounter();
 
     f2sm_mem_info_t mem_info[F2SM_MEM_NUMS];
-    int m_fd;
+	int up_fd;
+	int down_fd;
     void *virtual_base;
 };

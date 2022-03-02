@@ -1,11 +1,13 @@
-
 #pragma once
 
 #define F2SM_MEM_NUMS 2
-#define MEM_0_PHY_ADDR 0x31000000
+
+#define MEM_0_PHY_ADDR 0x30000000
 #define MEM_0_SIZE 0x00800000
-#define MEM_1_PHY_ADDR 0x31800000
+#define MEM_1_PHY_ADDR 0x30800000
 #define MEM_1_SIZE 0x00800000
+
+
 
 struct f2sm_mem_info
 {
@@ -16,22 +18,24 @@ struct f2sm_mem_info
 typedef struct f2sm_mem_info f2sm_mem_info_t;
 
 
-class CF2smIntf
+class CYxmIntf
 {
 public:
-    CF2smIntf();
-	~CF2smIntf();
-
+    CYxmIntf();
+	~CYxmIntf();
     void Init();
-    void testinit();
     void Close();
-    void StartTransfer_up_seed(int seed, int blk_count);
-    bool CheckResult(int seed, char *retbuf,char *cmpbuf,unsigned int u32WantLen);
+	void StartPrint();
+	void FinishPrint();
+	void Step1();
+	void Step2();
+	void Step3();
+	void Step3_1();
+	void PrintRegs();
 
-    void ResetCounter();
-
-    f2sm_mem_info_t mem_info[F2SM_MEM_NUMS];
     int up_fd;
 	int down_fd;
     void *virtual_base;
+	f2sm_mem_info_t mem_info[F2SM_MEM_NUMS];
 };
+

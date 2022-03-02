@@ -60,9 +60,6 @@ void fix_do_test(CF2smIntf &f2sm, int ost_frb_count, int tnd_frb_count)
 	unsigned int *ost_pPrbsBuff = (unsigned int *)ost_pDataBuf;
 	unsigned int *tnd_pPrbsBuff = (unsigned int *)tnd_pDataBuf;
 
-	unsigned int ost_randv = 0;
-	unsigned int tnd_randv = 0;
-
 	int ost_size = ost_frb_count * frb_size;	//must < one_ph_buf_size
 	int tnd_size = tnd_frb_count * frb_size;	//must < one_ph_buf_size
 	int ost_nInt = ost_size/4;
@@ -77,7 +74,8 @@ void fix_do_test(CF2smIntf &f2sm, int ost_frb_count, int tnd_frb_count)
     struct timeval tv_s;
     struct timeval tv_e;
     long duration = 0;
-	int the_fd = f2sm.m_fd;
+	//int the_fd = f2sm.m_fd;
+	int the_fd = f2sm.down_fd;
 	struct f2sm_read_info_t read_info;
 	u_int32_t u32SendCount = 0;
 
@@ -124,13 +122,13 @@ void fix_do_test(CF2smIntf &f2sm, int ost_frb_count, int tnd_frb_count)
 				printf("duration in send and reav used %lu ms\n", duration); 
 #ifndef YXMTEST			
 				/* check */
-				if(!f2sm.CheckResult(u32SendCount))  
+				if (!f2sm.CheckResult(u32SendCount))  
 					return;
 				else
 					printf("CheckResult ok\n");
 #endif				
 				times++;
-				if(times == TEST_TIMES) {
+				if (times == TEST_TIMES) {
 					printf("test done\n");
 					break;	
 				}
@@ -158,7 +156,7 @@ void fix_do_test(CF2smIntf &f2sm, int ost_frb_count, int tnd_frb_count)
 			
 			if (times & 0x1) {		//1st
 				/* 1st write */
-				int ost_nSendByte = write(the_fd, ost_pDataBuf, ost_size);
+				ost_nSendByte = write(the_fd, ost_pDataBuf, ost_size);
 				if (ost_nSendByte != ost_size) {
 					printf("1st write error! %d : %d \n", ost_size, ost_nSendByte);
 					return;
@@ -169,7 +167,9 @@ void fix_do_test(CF2smIntf &f2sm, int ost_frb_count, int tnd_frb_count)
 //				getchar();
 				gettimeofday(&tv_s,NULL);
 //				f2sm.StartTransfer(read_info.mem_index, ost_ph1_randv, ost_frb_count);
-				f2sm.StartTransfer(read_info.mem_index, ost_ph1_randv, ost_ph2_randv, ost_frb_count);
+//				f2sm.StartTransfer(read_info.mem_index, ost_ph1_randv, ost_ph2_randv, ost_frb_count);
+				f2sm.StartTransfer_down_seed(ost_ph1_randv, ost_ph2_randv, ost_frb_count);
+
 				u32SendCount += ost_frb_count;
 				if (u32SendCount > 0x0FFFFF00) {
 					printf("test done\n");
@@ -178,7 +178,7 @@ void fix_do_test(CF2smIntf &f2sm, int ost_frb_count, int tnd_frb_count)
 	
 			} else {	//2nd
 				/* 2nd write */
-				int tnd_nSendByte = write(the_fd, tnd_pDataBuf, tnd_size);
+				tnd_nSendByte = write(the_fd, tnd_pDataBuf, tnd_size);
 				if(tnd_nSendByte != tnd_size) {
 					printf("2nd write error! %d : %d \n", tnd_size, tnd_nSendByte);
 					return;
@@ -188,8 +188,7 @@ void fix_do_test(CF2smIntf &f2sm, int ost_frb_count, int tnd_frb_count)
 //				printf("press to 2nd send:\n");
 //				getchar();
 				gettimeofday(&tv_s,NULL);
-//				f2sm.StartTransfer(read_info.mem_index, tnd_ph1_randv, tnd_frb_count);
-				f2sm.StartTransfer(read_info.mem_index, tnd_ph1_randv, tnd_ph2_randv, tnd_frb_count);
+				f2sm.StartTransfer_down_seed(ost_ph1_randv, ost_ph2_randv, ost_frb_count);
 				u32SendCount += tnd_frb_count;
 				if (u32SendCount > 0x0FFFFF00) {
 					printf("test done\n");

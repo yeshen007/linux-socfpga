@@ -17,17 +17,6 @@
 #define alt_write_word(ADDR, DATA) \
   *(unsigned long*)(ADDR) = (DATA)
 
-#define alt_read_half_word(ADDR) \
-  *(unsigned short*)(ADDR)
-#define alt_write_half_word(ADDR, DATA) \
-  *(unsigned short*)(ADDR) = (DATA)
-
-#define alt_read_byte(ADDR) \
-  *(unsigned char*)(ADDR)
-#define alt_write_byte(ADDR, DATA) \
-  *(unsigned char*)(ADDR) = (DATA)
-
-
 
 //Where the FPGA Module is connected?Select one of the 2 situations
 #define FPGA_MODULE_ON_LIGHTWEIGHT
@@ -103,6 +92,24 @@
   IOWR(base, F2SM_FR_CHECK_REG, data)
 #define _F2SM_FR_CHECK_VALUE_OK          (0x0)
 
+#define F2SM_FR_CHECK_REG_PH1              14                        // ph1 read check
+#define IOADDR_F2SM_FR_CHECK_REG_PH1(base) \
+  __IO_CALC_ADDRESS_NATIVE(base, F2SM_FR_CHECK_REG_PH1)
+#define IORD_F2SM_FR_CHECK_REG_PH1(base) \
+  IORD(base, F2SM_FR_CHECK_REG_PH1) 
+#define IOWR_F2SM_FR_CHECK_REG_PH1(base, data) \
+  IOWR(base, F2SM_FR_CHECK_REG_PH1, data)
+#define _F2SM_FR_CHECK_VALUE_OK_PH1          (0x0)
+
+#define F2SM_FR_CHECK_REG_PH2              21                        // ph2 read check
+#define IOADDR_F2SM_FR_CHECK_REG_PH2(base) \
+  __IO_CALC_ADDRESS_NATIVE(base, F2SM_FR_CHECK_REG_PH2)
+#define IORD_F2SM_FR_CHECK_REG_PH2(base) \
+  IORD(base, F2SM_FR_CHECK_REG_PH2) 
+#define IOWR_F2SM_FR_CHECK_REG_PH2(base, data) \
+  IOWR(base, F2SM_FR_CHECK_REG_PH2, data)
+#define _F2SM_FR_CHECK_VALUE_OK_PH2          (0x0)
+
 #define F2SM_FR_RDLEN_REG              27                        // read len return; Accumulate mode
 #define IOADDR_F2SM_FR_RDLEN_REG(base) \
   __IO_CALC_ADDRESS_NATIVE(base, F2SM_FR_RDLEN_REG)
@@ -110,7 +117,8 @@
   IORD(base, F2SM_FR_RDLEN_REG) 
 #define IOWR_F2SM_FR_RDLEN_REG(base, data) \
   IOWR(base, F2SM_FR_RDLEN_REG, data)
-//#define _F2SM_FR_RDLEN_OK           (0x55) // 85                  
+//#define _F2SM_FR_RDLEN_OK           (0x55) // 85  
+
 
 #define F2SM_FR_DDLEN_REG              28                        // FPGA used len  return;Accumulate mode
 #define IOADDR_F2SM_FR_DDLEN_REG(base) \
@@ -120,6 +128,40 @@
 #define IOWR_F2SM_FR_DDLEN_REG(base, data) \
   IOWR(base, F2SM_FR_DDLEN_REG, data)
 //#define _F2SM_FR_RDLEN_OK           (0x55) // 85
+
+#define F2SM_FR_RDLEN_REG_PH1              12                        // ph1 read len return; Accumulate mode
+#define IOADDR_F2SM_FR_RDLEN_REG_PH1(base) \
+  __IO_CALC_ADDRESS_NATIVE(base, F2SM_FR_RDLEN_REG_PH1)
+#define IORD_F2SM_FR_RDLEN_REG_PH1(base) \
+  IORD(base, F2SM_FR_RDLEN_REG_PH1) 
+#define IOWR_F2SM_FR_RDLEN_REG_PH1(base, data) \
+  IOWR(base, F2SM_FR_RDLEN_REG_PH1, data)
+
+#define F2SM_FR_DDLEN_REG_PH1              13                        // ph1 FPGA used len  return;Accumulate mode
+#define IOADDR_F2SM_FR_DDLEN_REG_PH1(base) \
+  __IO_CALC_ADDRESS_NATIVE(base, F2SM_FR_DDLEN_REG_PH1)
+#define IORD_F2SM_FR_DDLEN_REG_PH1(base) \
+  IORD(base, F2SM_FR_DDLEN_REG_PH1) 
+#define IOWR_F2SM_FR_DDLEN_REG_PH1(base, data) \
+  IOWR(base, F2SM_FR_DDLEN_REG_PH1, data)
+
+#define F2SM_FR_RDLEN_REG_PH2              19                        // ph2 read len return; Accumulate mode
+#define IOADDR_F2SM_FR_RDLEN_REG_PH2(base) \
+  __IO_CALC_ADDRESS_NATIVE(base, F2SM_FR_RDLEN_REG_PH2)
+#define IORD_F2SM_FR_RDLEN_REG_PH2(base) \
+  IORD(base, F2SM_FR_RDLEN_REG_PH2) 
+#define IOWR_F2SM_FR_RDLEN_REG_PH2(base, data) \
+  IOWR(base, F2SM_FR_RDLEN_REG_PH2, data)
+
+#define F2SM_FR_DDLEN_REG_PH2              20                        // ph2 FPGA used len  return;Accumulate mode
+#define IOADDR_F2SM_FR_DDLEN_REG_PH2(base) \
+  __IO_CALC_ADDRESS_NATIVE(base, F2SM_FR_DDLEN_REG_PH2)
+#define IORD_F2SM_FR_DDLEN_REG_PH2(base) \
+  IORD(base, F2SM_FR_DDLEN_REG_PH2) 
+#define IOWR_F2SM_FR_DDLEN_REG_PH2(base, data) \
+  IOWR(base, F2SM_FR_DDLEN_REG_PH2, data)
+
+
 
 #define F2SM_FR_RESETLEN_REG              30                        // FR - FPGA READ
 #define IOADDR_F2SM_FR_RESETLEN_REG(base) \
@@ -140,14 +182,6 @@
   IORD(base, F2SM_FW_ADDR_REG) 
 #define IOWR_F2SM_FW_ADDR_REG(base, data) \
   IOWR(base, F2SM_FW_ADDR_REG, data)
-
-#define F2SM_FW_SIZE_REG              35                        // Address
-#define IOADDR_F2SM_FW_SIZE_REG(base) \
-  __IO_CALC_ADDRESS_NATIVE(base, F2SM_FW_SIZE_REG)
-#define IORD_F2SM_FW_SIZE_REG(base) \
-  IORD(base, F2SM_FW_SIZE_REG) 
-#define IOWR_F2SM_FW_SIZE_REG(base, data) \
-  IOWR(base, F2SM_FW_SIZE_REG, data)
 
 #define F2SM_FW_START_REG              24                        // FW - FPGA WRITE
 #define IOADDR_F2SM_FW_START_REG(base) \
@@ -174,41 +208,6 @@
   IORD(base, F2SM_FW_DATA_MINH_REG) 
 #define IOWR_F2SM_FW_DATA_MINH_REG(base, data) \
   IOWR(base, F2SM_FW_DATA_MINH_REG, data)
-
-#define F2SM_FW_CHECK_REG_PH1              18                        // ph1 read check
-#define IOADDR_F2SM_FW_CHECK_REG_PH1(base) \
-  __IO_CALC_ADDRESS_NATIVE(base, F2SM_FW_CHECK_REG_PH1)
-#define IORD_F2SM_FW_CHECK_REG_PH1(base) \
-  IORD(base, F2SM_FW_CHECK_REG_PH1) 
-#define IOWR_F2SM_FW_CHECK_REG_PH1(base, data) \
-  IOWR(base, F2SM_FW_CHECK_REG_PH1, data)
-#define _F2SM_FW_CHECK_VALUE_OK_PH1          (0x0)
-
-#define F2SM_FW_CHECK_REG_PH2              25                        // ph2 read check
-#define IOADDR_F2SM_FW_CHECK_REG_PH2(base) \
-  __IO_CALC_ADDRESS_NATIVE(base, F2SM_FW_CHECK_REG_PH2)
-#define IORD_F2SM_FW_CHECK_REG_PH2(base) \
-  IORD(base, F2SM_FW_CHECK_REG_PH2) 
-#define IOWR_F2SM_FW_CHECK_REG_PH2(base, data) \
-  IOWR(base, F2SM_FW_CHECK_REG_PH2, data)
-#define _F2SM_FW_CHECK_VALUE_OK_PH2          (0x0)
-
-
-#define F2SM_FW_DDLEN_REG_PH1              17                        // ph1 FPGA used len  return;Accumulate mode
-#define IOADDR_F2SM_FW_DDLEN_REG_PH1(base) \
-  __IO_CALC_ADDRESS_NATIVE(base, F2SM_FW_DDLEN_REG_PH1)
-#define IORD_F2SM_FW_DDLEN_REG_PH1(base) \
-  IORD(base, F2SM_FW_DDLEN_REG_PH1) 
-#define IOWR_F2SM_FW_DDLEN_REG_PH1(base, data) \
-  IOWR(base, F2SM_FW_DDLEN_REG_PH1, data)
-
-#define F2SM_FW_DDLEN_REG_PH2              24                        // ph2 FPGA used len  return;Accumulate mode
-#define IOADDR_F2SM_FW_DDLEN_REG_PH2(base) \
-  __IO_CALC_ADDRESS_NATIVE(base, F2SM_FW_DDLEN_REG_PH2)
-#define IORD_F2SM_FW_DDLEN_REG_PH2(base) \
-  IORD(base, F2SM_FW_DDLEN_REG_PH2) 
-#define IOWR_F2SM_FW_DDLEN_REG_PH2(base, data) \
-  IOWR(base, F2SM_FW_DDLEN_REG_PH2, data)
 
 
 #endif //__ALT_F2SM_REGS_H__

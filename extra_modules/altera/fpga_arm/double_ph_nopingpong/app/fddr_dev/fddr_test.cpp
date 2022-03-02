@@ -85,7 +85,7 @@ int do_test(void)
                             break;
                     }
                     
-    			f2sm.testinit();
+    				f2sm.testinit();
                     f2sm.StartRead();
                 }
                 else
