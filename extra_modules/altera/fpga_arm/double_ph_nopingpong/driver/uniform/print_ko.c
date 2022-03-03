@@ -134,10 +134,9 @@ static inline int InitQueueF2sm(struct f2sm_buf_q *buf)
 
 static inline int EnQueueF2sm(struct f2sm_buf_q *buf,int mem_index)
 {
-	if (((buf->tail + 1) & 0x3) == buf->head)  // %4 equal to &0x3 
-	{
-		return -1;//full
-	}
+	if (((buf->tail + 1) & 0x3) == buf->head)  //full
+		return -1;
+	
 	buf->mem[buf->tail] = mem_index;
 	buf->tail = (buf->tail + 1) & 0x3; //set // %4 equal to &0x3 
 	return 0;
@@ -147,10 +146,9 @@ static inline int DeQueueF2sm(struct f2sm_buf_q *buf)
 {
 	//若队列不空，则删除Q的对头元素，用e返回其值
 	int mem_index = -1;
-	if (buf->tail == buf->head)
-	{
+	if (buf->tail == buf->head)		//empty
 		return -1;
-	}
+	
 	mem_index = buf->mem[buf->head];
 	buf->head = (buf->head + 1) & 0x3;   // %4 equal to &0x3 
 	return mem_index;

@@ -1,8 +1,8 @@
 
 #Name of the module
-obj-m := yxm.o
+obj-m := print.o
 #Files composing the module
-yxm-objs :=  yxm_ko.o
+print-objs :=  print_ko.o
 
 #guest architecture
 ARCH := arm
