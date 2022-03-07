@@ -145,6 +145,7 @@ static inline int EnQueueF2sm(struct f2sm_buf_q *buf,int mem_index)
 static inline int DeQueueF2sm(struct f2sm_buf_q *buf) 
 {
 	//若队列不空，则删除Q的对头元素，用e返回其值
+	//若为空，直接返回负一
 	int mem_index = -1;
 	if (buf->tail == buf->head)		//empty
 		return -1;
@@ -425,7 +426,7 @@ ret_to_user_with_dma_interrupt:
 ret_to_user_with_print_interrupt_after_dma_interrupt:
 	readpos = 0;
 	the_f2sm_ram_dev_up.cur_io_buf_index = mem_index;
-	the_size = dev->p_uio_info->mem[mem_index].size;	//0x800000
+	the_size = dev->p_uio_info->mem[mem_index].size;	
 	if (count > (the_size - readpos)) {   
 		cur_count = the_size - readpos;		//我的设计中不可能
 		up(&dev->sem);

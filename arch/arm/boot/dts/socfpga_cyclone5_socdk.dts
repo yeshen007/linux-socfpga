@@ -35,28 +35,28 @@
 
 		buffer0@0x30000000 {
 			no-map;
-			reg = <0x30000000 0x0800000>;
+			reg = <0x30000000 0x1000000>;
 			linux,phandle = <0x66>;
 			phandle = <0x66>;
 		};
 
-		buffer1@0x30800000 {
+		buffer1@0x31000000 {
 			no-map;
-			reg = <0x30800000 0x0800000>;
+			reg = <0x31000000 0x1000000>;
 			linux,phandle = <0x67>;
 			phandle = <0x67>;
 		};
 		
-		buffer2@0x31000000 {
+		buffer2@0x32000000 {
 			no-map;
-			reg = <0x31000000 0x0800000>;
+			reg = <0x32000000 0x1000000>;
 			linux,phandle = <0x68>;
 			phandle = <0x68>;
 		};
 
-		buffer3@0x31800000 {
+		buffer3@0x33000000 {
 			no-map;
-			reg = <0x31800000 0x0800000>;
+			reg = <0x33000000 0x1000000>;
 			linux,phandle = <0x69>;
 			phandle = <0x69>;
 		};		
@@ -87,10 +87,10 @@
 
 	yxm_driver_subsys {
 		compatible = "yxm_dev,driver-1.0";
-		memory-region = <0x66 0x67>;
+		memory-region = <0x66 0x67 0x68 0x69>;
 		interrupt-parent = <0x2>;
-		interrupts = <0x0 0x28 0x1 0x0 0x2c 0x1 0x0 0x2d 0x1>;
-		interrupt-names = "irq0-0", "irq0-4", "irq0-5";
+		interrupts = <0x0 0x28 0x1 0x0 0x29 0x1 0x0 0x2c 0x1 0x0 0x2d 0x1>;
+		interrupt-names = "irq0-0", "irq0-1", "irq0-4", "irq0-5";
 	};
 
 	leds {
@@ -240,6 +240,15 @@
 		compatible = "nxp,pca9535";
 		reg = <0x21>;
 		gpio-controller;
+	};
+};
+
+&i2c1 {
+	status = "okay";
+
+	sfps@50 {
+		compatible = "sima,sfp-8472";
+		reg = <0x50>;
 	};
 };
 
