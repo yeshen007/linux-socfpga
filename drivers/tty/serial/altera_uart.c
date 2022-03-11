@@ -585,7 +585,9 @@ static int altera_uart_probe(struct platform_device *pdev)
 	else if (platp)
 		port->irq = platp->irq;
 
-	/* Check platform data first so we can override device node data */
+	/* Check platform data first so we can override device node data
+     * 提取时钟频率
+	 */
 	if (platp)
 		port->uartclk = platp->uartclk;
 	else {
@@ -607,7 +609,7 @@ static int altera_uart_probe(struct platform_device *pdev)
 	port->line = i;
 	port->type = PORT_ALTERA_UART;
 	port->iotype = SERIAL_IO_MEM;
-	port->ops = &altera_uart_ops;
+	port->ops = &altera_uart_ops;		/* 应用调用的接口 */
 	port->flags = UPF_BOOT_AUTOCONF;
 	port->dev = &pdev->dev;
 

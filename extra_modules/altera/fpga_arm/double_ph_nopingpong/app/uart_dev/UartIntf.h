@@ -11,30 +11,28 @@ typedef unsigned int u32;
  */
 class CUartIntf
 {
-private:
-    void *ph0_uart_virtual_base;
-	void *ph1_uart_virtual_base;
-
 public:
-	void *active_virtual_base;
+    void *ph0_uart_virtual_base;				//喷头0串口寄存器基地址
+	void *ph1_uart_virtual_base;				//喷头1串口寄存器基地址
+	void *active_virtual_base;					//正在操作的串口寄存器基地址
 	
-    CUartIntf();
-	~CUartIntf();
-	void ActivePh0(void);
-	void ActivePh1(void);	
-	u8 ReviceData(void);
+    CUartIntf();								//设置ph0_uart_virtual_base和ph1_uart_virtual_base
+	~CUartIntf();								//销毁ph0_uart_virtual_base,ph1_uart_virtual_base,active_virtual_base
+	u8 ReviceData(void);						//读取rxdata
+	u8 ReviceDataPoll(void);					//等到RRDY为1再读取rxdata
 	u16 GetStatus(void);
 	u16 GetControl(void);
-	u16 GetDivisor(void);
-	u32 GetBaud(void);
-	u8 GetEndOfPacket(void);
-	void TransmitData(u8 data);
+	u16 GetDivisor(void);						//硬件不支持,不能用
+	u32 GetBaud(void);							//硬件不支持,不能用
+	u8 GetEndOfPacket(void);					//硬件不支持,不能用
+	void TransmitData(u8 data);					//写数据到txdata
+	void TransmitDataPoll(u8 data);				//等到TMT为1且TRDY为1再写数据到txdata
 	void ClearStatus(void);
 	void SetControl(u16 value);
-	void SetDivisor(u16 divisor);
-	void SetBaud(u32 baud);
-	void SetEndOfPacket(u8 endofpacket);
-	int CheckError(u16 mask);	//检查PE,FE,BPK,ROE,TOE,E,DCTS是否错误
+	void SetDivisor(u16 divisor);				//硬件不支持,不能用
+	void SetBaud(u32 baud);						//硬件不支持,不能用
+	void SetEndOfPacket(u8 endofpacket);		//硬件不支持,不能用
+	int CheckError(u16 mask);					
 };
 
 
@@ -58,10 +56,17 @@ private   | private   | private   | 隔离      |
 class CPhUartIntf : public CUartIntf
 {
 public:
-    CPhUartIntf();
-	~CPhUartIntf();
-	
-	int PhReviceData(void *pdata);	     
-	
+    CPhUartIntf();						
+	~CPhUartIntf();						
+	void ActivePh0(void);				//激活ph0,即设置active_virtual_base = ph0_uart_virtual_base
+	void ActivePh1(void);				//激活ph1,即设置active_virtual_base = ph1_uart_virtual_base	
+
+	/* 发送命令comd给喷头 
+     * 接收喷头发送的数据
+     * 先发送命令comd给喷头,然后等待接收喷头发回的响应数据
+	 */
+	void PhTransmitCommand(u8 comd);
+	int PhReviceData(void *pdata);	
+	int PhTransmitCommand_ReviceData(u8 comd, void *pdata);
 };
 

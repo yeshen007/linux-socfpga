@@ -104,27 +104,28 @@
 				clocks {
 					#address-cells = <1>;
 					#size-cells = <0>;
-
+					/* osc1时钟源 */
 					osc1: osc1 {
 						#clock-cells = <0>;
 						compatible = "fixed-clock";
 					};
-
+					/* osc2时钟源 */
 					osc2: osc2 {
 						#clock-cells = <0>;
 						compatible = "fixed-clock";
 					};
-
+					/* f2h_periph_ref_clk时钟源 */
 					f2s_periph_ref_clk: f2s_periph_ref_clk {
 						#clock-cells = <0>;
 						compatible = "fixed-clock";
 					};
-
+					/* f2h_sdram_ref_clk时钟源 */
 					f2s_sdram_ref_clk: f2s_sdram_ref_clk {
 						#clock-cells = <0>;
 						compatible = "fixed-clock";
 					};
 
+					/* main_pll时钟组 */
 					main_pll: main_pll@40 {
 						#address-cells = <1>;
 						#size-cells = <0>;
@@ -133,6 +134,7 @@
 						clocks = <&osc1>;
 						reg = <0x40>;
 
+						/* mpu_base_clk */
 						mpuclk: mpuclk@48 {
 							#clock-cells = <0>;
 							compatible = "altr,socfpga-perip-clk";
@@ -140,7 +142,7 @@
 							div-reg = <0xe0 0 9>;
 							reg = <0x48>;
 						};
-
+						/* main_base_clk */
 						mainclk: mainclk@4c {
 							#clock-cells = <0>;
 							compatible = "altr,socfpga-perip-clk";
@@ -148,7 +150,7 @@
 							div-reg = <0xe4 0 9>;
 							reg = <0x4C>;
 						};
-
+						/* dbg_base_clk */
 						dbg_base_clk: dbg_base_clk@50 {
 							#clock-cells = <0>;
 							compatible = "altr,socfpga-perip-clk";
@@ -156,29 +158,30 @@
 							div-reg = <0xe8 0 9>;
 							reg = <0x50>;
 						};
-
+						/* main_qspi_base_clk */
 						main_qspi_clk: main_qspi_clk@54 {
 							#clock-cells = <0>;
 							compatible = "altr,socfpga-perip-clk";
 							clocks = <&main_pll>;
 							reg = <0x54>;
 						};
-
+						/* main_nand_sdmmc_base_clk */
 						main_nand_sdmmc_clk: main_nand_sdmmc_clk@58 {
 							#clock-cells = <0>;
 							compatible = "altr,socfpga-perip-clk";
 							clocks = <&main_pll>;
 							reg = <0x58>;
 						};
-
+						/* cfg_h2f_user0_base_clk */
 						cfg_h2f_usr0_clk: cfg_h2f_usr0_clk@5c {
 							#clock-cells = <0>;
 							compatible = "altr,socfpga-perip-clk";
 							clocks = <&main_pll>;
 							reg = <0x5C>;
 						};
-					};
+					};	/* main_pll */
 
+					/* periph_pll时钟组 */
 					periph_pll: periph_pll@80 {
 						#address-cells = <1>;
 						#size-cells = <0>;
@@ -228,8 +231,9 @@
 							clocks = <&periph_pll>;
 							reg = <0x9C>;
 						};
-					};
+					};	/* periph_pll */
 
+					/* sdram_pll时钟组 */
 					sdram_pll: sdram_pll@c0 {
 						#address-cells = <1>;
 						#size-cells = <0>;
@@ -265,7 +269,7 @@
 							clocks = <&sdram_pll>;
 							reg = <0xD4>;
 						};
-					};
+					};	/* sdram_pll */
 
 					mpu_periph_clk: mpu_periph_clk {
 						#clock-cells = <0>;
@@ -505,8 +509,8 @@
 						clk-gate = <0xd8 3>;
 					};
 
-				};
-		};
+				};	/* clocks */
+		};	/* clkmgr@ffd04000 */
 
 		fpga_bridge0: fpga_bridge@ff400000 {
 			compatible = "altr,socfpga-lwhps2fpga-bridge";

@@ -93,6 +93,12 @@
 		interrupt-names = "irq0-0", "irq0-1", "irq0-4", "irq0-5";
 	};
 
+	/* altera uart soft ip */
+	ph_uart {
+		compatible = "altr,uart-1.0";
+
+	};
+
 	leds {
 		compatible = "gpio-leds";
 		led0 {	

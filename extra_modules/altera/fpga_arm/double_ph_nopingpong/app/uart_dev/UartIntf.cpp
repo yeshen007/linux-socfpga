@@ -55,16 +55,6 @@ CUartIntf::~CUartIntf()
 	active_virtual_base = NULL;
 }
 
-void CUartIntf::ActivePh0(void)
-{
-	active_virtual_base = ph0_uart_virtual_base;
-}
-
-void CUartIntf::ActivePh1(void)
-{
-	active_virtual_base = ph1_uart_virtual_base;
-}
-
 
 u8 CUartIntf::ReviceData(void)
 {
@@ -77,6 +67,32 @@ u8 CUartIntf::ReviceData(void)
 	
 	return (u8)reg_val;
 }
+
+u8 CUartIntf::ReviceDataPoll(void)
+{
+	void *reg_addr = NULL;
+	u16 reg_val;
+	
+	void *status_addr = NULL;
+	u16 status_val;
+	u16 rrdy_mask = 0x80;
+
+	status_addr = __IO_CALC_ADDRESS_NATIVE(active_virtual_base, STATUS_OFFSET);
+	
+	/* 轮询直到rrdy为1 */
+	do {
+		status_val = alt_read_half_word(status_addr);
+		status_val &= rrdy_mask;
+	} while (!status_val);
+
+	reg_addr = __IO_CALC_ADDRESS_NATIVE(active_virtual_base, RXDATA_OFFSET);
+	reg_val = alt_read_half_word(reg_addr);
+	reg_val &= 0x7f;
+	
+	return (u8)reg_val;	
+
+}
+
 
 u16 CUartIntf::GetStatus(void)
 {
@@ -147,6 +163,29 @@ void CUartIntf::TransmitData(u8 data)
 	alt_write_half_word(reg_addr, (u16)data);
 }
 
+
+void CUartIntf::TransmitDataPoll(u8 data)
+{
+	void *reg_addr = NULL;
+
+	void *status_addr = NULL;
+	u16 status_val;
+	u16 tmt_trdy_mask = 0x60;
+
+	status_addr = __IO_CALC_ADDRESS_NATIVE(active_virtual_base, STATUS_OFFSET);
+
+	/* 轮询直到TMT为1且TRDY为1 */
+	do {
+		status_val = alt_read_half_word(status_addr);
+		status_val &= tmt_trdy_mask;
+	} while (status_val != tmt_trdy_mask);
+
+	reg_addr = __IO_CALC_ADDRESS_NATIVE(active_virtual_base, TXDATA_OFFSET);
+	alt_write_half_word(reg_addr, (u16)data);
+
+}
+
+
 void CUartIntf::ClearStatus(void)
 {
 	void *reg_addr = NULL;
@@ -189,9 +228,10 @@ void CUartIntf::SetEndOfPacket(u8 endofpacket)
 	alt_write_half_word(reg_addr, (u16)endofpacket);
 }
 
+
 int CUartIntf::CheckError(u16 mask)
 {
-	
+	//检查PE,FE,BPK,ROE,TOE,E,DCTS是否错误
 	return 0;
 }
 
@@ -202,19 +242,42 @@ int CUartIntf::CheckError(u16 mask)
  */
 CPhUartIntf::CPhUartIntf()
 {
-
+	ClearStatus();
 }
 
 CPhUartIntf::~CPhUartIntf()
 {
+	ClearStatus();
+}
+
+void CPhUartIntf::ActivePh0(void)
+{
+	active_virtual_base = ph0_uart_virtual_base;
+}
+
+void CPhUartIntf::ActivePh1(void)
+{
+	active_virtual_base = ph1_uart_virtual_base;
+}
+
+
+void CPhUartIntf::PhTransmitCommand(u8 comd)
+{
+	
 
 }
 
-/* 按喷头协议来接收数据,根据情况看要不要checkerror */
 int CPhUartIntf::PhReviceData(void *pdata)
 {
 
 	return 0;
 }
+
+int CPhUartIntf::PhTransmitCommand_ReviceData(u8 comd, void *pdata)
+{
+
+	return 0;
+}
+
 
 
