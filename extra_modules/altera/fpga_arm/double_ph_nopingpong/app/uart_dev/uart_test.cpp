@@ -22,14 +22,24 @@
 static CPhUartIntf ph_uart;
 
 int main(void)
-{		
-	//u32  reg_addr;
-	//u16  reg_val;
-	
-	ph_uart.ActivePh0();
+{	
+	u8 buf[32] = {0};
+	u8 comd = 0x1;
+	u8 *p = &buf[0];
+	int rev, i;
 
+	/* 激活第一个喷头 */
+//	ph_uart.ActivePh0();
 
-	//printf("uart0 base is:%x\n", reg_addr);
+	/* 激活第二个喷头 */
+	ph_uart.ActivePh1();	
+
+	/* 发送读serial number命令然后接收返回数据 */
+	rev = ph_uart.PhTransmitCommand_ReviceData(comd, p);
+
+	/* 打印返回数据 */
+	for (i = 0; i < rev; i++)
+		printf("p[%d] -- %x\n", i, p[i]);
 
 	return 0;
 }

@@ -7,25 +7,25 @@
 #define __IO_CALC_ADDRESS_NATIVE(BASE, REGNUM) \
   ((void *)(((unsigned char*)BASE) + ((REGNUM) * (SYSTEM_BUS_WIDTH/8))))
 #define IORD(BASE, REGNUM) \
-  *(unsigned long*)(__IO_CALC_ADDRESS_NATIVE ((BASE), (REGNUM)))
+  *(const volatile unsigned long*)(__IO_CALC_ADDRESS_NATIVE ((BASE), (REGNUM)))
 #define IOWR(BASE, REGNUM, DATA) \
-  *(unsigned long*)(__IO_CALC_ADDRESS_NATIVE ((BASE), (REGNUM))) = (DATA)
+  *(volatile unsigned long*)(__IO_CALC_ADDRESS_NATIVE ((BASE), (REGNUM))) = (DATA)
 
 
 #define alt_read_word(ADDR) \
-  *(unsigned long*)(ADDR)
+  *(const volatile unsigned long*)(ADDR)
 #define alt_write_word(ADDR, DATA) \
-  *(unsigned long*)(ADDR) = (DATA)
+  *(volatile unsigned long*)(ADDR) = (DATA)
 
 #define alt_read_half_word(ADDR) \
-  *(unsigned short*)(ADDR)
+  *(const volatile unsigned short*)(ADDR)
 #define alt_write_half_word(ADDR, DATA) \
-  *(unsigned short*)(ADDR) = (DATA)
+  *(volatile unsigned short*)(ADDR) = (DATA)
 
 #define alt_read_byte(ADDR) \
-  *(unsigned char*)(ADDR)
+  *(const volatile unsigned char*)(ADDR)
 #define alt_write_byte(ADDR, DATA) \
-  *(unsigned char*)(ADDR) = (DATA)
+  *(volatile unsigned char*)(ADDR) = (DATA)
 
 
 

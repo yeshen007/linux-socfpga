@@ -1,0 +1,310 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright (C) 2012 Altera Corporation <www.altera.com>
+ */
+
+#include "socfpga_cyclone5.dtsi"
+#include <dt-bindings/net/ti-dp83869.h>
+/ {
+	model = "Altera SOCFPGA Cyclone V SoC Development Kit";
+	compatible = "altr,socfpga-cyclone5-socdk", "altr,socfpga-cyclone5", "altr,socfpga";
+
+	chosen {
+		bootargs = "earlyprintk";
+		stdout-path = "serial0:115200n8";
+	};
+
+	memory@0 {
+		name = "memory";
+		device_type = "memory";
+		reg = <0x0 0x40000000>; /* 1GB */
+	};
+
+	aliases {
+		/* this allow the ethaddr uboot environmnet variable contents
+		 * to be added to the gmac1 device tree blob.
+		 */
+		ethernet0 = &gmac0;
+		ethernet1 = &gmac1;
+	};
+
+	reserved-memory {
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		ranges;
+
+		/* 上行ph0 */
+		buffer0@0x30000000 {
+			no-map;
+			reg = <0x30000000 0x1000000>;
+			linux,phandle = <0x66>;
+			phandle = <0x66>;
+		};
+		
+		/* 上行ph1 */
+		buffer1@0x31000000 {
+			no-map;
+			reg = <0x31000000 0x1000000>;
+			linux,phandle = <0x67>;
+			phandle = <0x67>;
+		};
+
+		/* 下行ph0 */
+		buffer2@0x32000000 {
+			no-map;
+			reg = <0x32000000 0x1000000>;
+			linux,phandle = <0x68>;
+			phandle = <0x68>;
+		};
+
+		/* 下行ph1 */
+		buffer3@0x33000000 {
+			no-map;
+			reg = <0x33000000 0x1000000>;
+			linux,phandle = <0x69>;
+			phandle = <0x69>;
+		};		
+	};	
+
+/*
+	f2sm_driver_subsys_0 {
+		compatible = "f2sm_rdev,driver-1.0";
+		memory-region = <0x66 0x67>;
+		interrupt-parent = <0x2>;
+		interrupts = <0x0 0x28 0x1>;
+		interrupt-names = "irq0-0";
+	};
+
+	f2sm_driver_subsys_1 {
+		compatible = "f2sm_wdev,driver-1.0";
+		memory-region = <0x68 0x69>;
+		interrupt-parent = <0x2>;
+		interrupts = <0x0 0x29 0x1 >;
+		interrupt-names = "irq0-1";
+	};	
+
+	f2sm_driver_subsys_2 {
+		compatible = "fddr_dev,driver-1.0";
+		interrupt-parent = <0x2>;
+		interrupts = <0x0 0x2b 0x1 0x0 0x2a 0x1>;
+		interrupt-names = "irq0-3", "irq0-2";
+	};
+*/
+
+	print_driver_subsys {
+		compatible = "print_dev,driver-1.0";
+		memory-region = <0x66 0x67 0x68 0x69>;
+		interrupt-parent = <0x2>;
+		interrupts = <0x0 0x28 0x1 0x0 0x29 0x1 0x0 0x2c 0x1 0x0 0x2d 0x1>;
+		interrupt-names = "irq0-0", "irq0-1", "irq0-4", "irq0-5";
+		resets = <&rst S2F_RESET>;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		led0 {	
+			label = "FPGA_CFG";
+			gpios = <&portb 24 1>;
+		};     
+		led1 {
+			label = "Boot_State";
+			gpios = <&portb 25 1>;
+		};
+	};	
+
+	gpios {
+        compatible = "altr,pio-1.0";
+        gpio35 {
+            label = "LOCK_CHIP_EN";
+            gpios = <&portb 6 1>;
+        };
+    	gpio44 {
+      		label = "SDCARD_INSTRUCT"; 
+    		gpios = <&portb 15 1>;   
+    	};
+    	gpio48 {
+      		label = "24V_EN";
+    		gpios = <&portb 19 1>;    
+    	};  
+    	gpio49 {
+      		label = "PH_EN";
+    		gpios = <&portb 20 1>;    
+    	};
+    	gpio50 {
+      		label = "Reserve"; 
+    		gpios = <&portb 21 1>;    
+    	};  
+    	gpio51 {
+      		label = "IC_EN"; 
+    		gpios = <&portb 22 1>;    
+    	};   
+    	gpio52 {
+      		label = "BOARD_INDEX";
+    		gpios = <&portb 23 1>;    
+    	};  
+    	gpio55 {
+      		label = "PHY1_INIT"; 
+    		gpios = <&portb 26 1>;    
+    	};
+    	gpio56 {
+      		label = "PHY2_INIT"; 
+    		gpios = <&portb 27 1>;    
+    	};
+    	gpio59 {
+      		label = "PCA9535_INIT";
+    		gpios = <&portc 1 1>;    
+    	};
+    	gpio61 {
+      		label = "LOS_INDEX"; 
+    		gpios = <&portc 3 1>;    
+    	};
+	};	
+
+	regulator_3_3v: 3-3-v-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "3.3V";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+	};
+};
+
+
+&gmac0 {
+    status = "okay";
+    phy-mode = "rgmii";
+	snps,phy-addr = <10>;
+	mdio0 {
+        compatible = "snps,dwmac-mdio";
+        #address-cells = <1>;
+        #size-cells = <0>;
+        phy0: ethernet-phy@0 {
+        	compatible = "ethernet-phy-id2000.a0f1";
+			ti,op-mode = <DP83869_RGMII_1000_BASE>;
+			rx-fifo-depth = <DP83869_PHYCR_FIFO_DEPTH_4_B_NIB>;
+			reg = <10>;
+			tx-fifo-depth = <DP83869_PHYCR_FIFO_DEPTH_4_B_NIB>;
+            ti,clk-output-sel = <DP83869_CLK_O_SEL_REF_CLK>;
+        };
+	};
+};
+
+&gmac1 {
+	status = "okay";
+	phy-mode = "rgmii";
+	snps,phy-addr = <10>;
+	mdio1 {
+        compatible = "snps,dwmac-mdio";
+        #address-cells = <1>;
+        #size-cells = <0>;
+        phy1: ethernet-phy@1 {
+            compatible = "ethernet-phy-id2000.a0f1";
+			ti,op-mode = <0>;
+			rx-fifo-depth = <DP83869_PHYCR_FIFO_DEPTH_4_B_NIB>;
+			tx-fifo-depth = <DP83869_PHYCR_FIFO_DEPTH_4_B_NIB>;
+            reg = <10>;
+			ti,max-output-impedance = "true";
+            ti,clk-output-sel = <DP83869_CLK_O_SEL_REF_CLK>;
+        };
+	};
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+
+&gpio1 {
+	status = "okay";
+};
+
+&gpio2 {
+	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+	clock-frequency = <100000>;
+
+	/*
+	 * adjust the falling times to decrease the i2c frequency to 50Khz
+	 * because the LCD module does not work at the standard 100Khz
+	 */
+	i2c-sda-falling-time-ns = <5000>;
+	i2c-scl-falling-time-ns = <5000>;
+
+	eeprom@56 {
+		compatible = "atmel,24c64";
+		reg = <0x56>;
+		pagesize = <32>;
+	};
+
+	gpio@21 {
+		compatible = "nxp,pca9535";
+		reg = <0x21>;
+		gpio-controller;
+	};
+};
+
+&i2c1 {
+	status = "okay";
+
+	sfps@50 {
+		compatible = "sima,sfp-8472";
+		reg = <0x50>;
+	};
+};
+
+&mmc0 {
+	//cd-gpios = <&portb 15 0>;
+	vmmc-supply = <&regulator_3_3v>;
+	vqmmc-supply = <&regulator_3_3v>;
+	status = "okay";
+};
+
+&qspi {
+	status = "okay";
+
+	flash0: n25q00@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "n25q00";
+		reg = <0>;	/* chip select */
+		spi-max-frequency = <100000000>;
+
+		m25p,fast-read;
+		cdns,page-size = <256>;
+		cdns,block-size = <16>;
+		cdns,read-delay = <4>;
+		cdns,tshsl-ns = <50>;
+		cdns,tsd2d-ns = <50>;
+		cdns,tchsh-ns = <4>;
+		cdns,tslch-ns = <4>;
+
+		partition@qspi-boot {
+            /* 8MB for raw data. */
+            label = "Flash 0 Raw Data";
+            reg = <0x0 0x800000>;
+        };
+
+        partition@qspi-rootfs {
+            /* 12MB for jffs2 data. */
+            label = "Flash 0 jffs2 Filesystem";
+            reg = <0x800000 0xC00000>;
+        };
+        partition@qspi-FPGA {
+            /* 12MB for rbf data. */
+            label = "FPGA rbf File";
+            reg = <0x1400000 0xC00000>;
+        };
+	};
+};
+
+&spi0 {
+	status = "okay";
+
+	spidev@0 {
+		compatible = "rohm,dh2228fv";
+		reg = <0>;
+		spi-max-frequency = <1000000>;
+	};
+};

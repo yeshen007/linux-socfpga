@@ -9,8 +9,9 @@
 #include "UartIntf.h"
 #include "alt_f2sm_regs.h"
 
-#define FPGA_UART0 (HPS_FPGA_BRIDGE_BASE + 0x800)
-#define FPGA_UART1 (HPS_FPGA_BRIDGE_BASE + 0x820)
+#define UART0_BRIDGE_OFFSET 0x800
+#define UART1_BRIDGE_OFFSET 0x820
+
 
 #define RXDATA_OFFSET 		0
 #define TXDATA_OFFSET 		1
@@ -21,20 +22,13 @@
 
 #define CLOCK_FREQ 1000000		//暂时随便给让编译通过	
 
-#if 0
-#define PH0_RXDATA  	(FPGA_UART0 + 0x0)
-#define PH0_TXDATA 		(FPGA_UART0 + 0x4)
-#define PH0_STATUS  	(FPGA_UART0 + 0x8)
-#define PH0_CONTROL 	(FPGA_UART0 + 0xC)
-#define PH0_DIVISOR  	(FPGA_UART0 + 0x10)
-#define PH0_ENDOFPACKET (FPGA_UART0 + 0x14)
 
-#define PH1_RXDATA  	(FPGA_UART1 + 0x0)
-#define PH1_TXDATA 		(FPGA_UART1 + 0x4)
-#define PH1_STATUS  	(FPGA_UART1 + 0x8)
-#define PH1_CONTROL 	(FPGA_UART1 + 0xC)
-#define PH1_DIVISOR  	(FPGA_UART1 + 0x10)
-#define PH1_ENDOFPACKET (FPGA_UART1 + 0x14)
+#define DEBUG
+ 
+#ifdef DEBUG
+	#define debug(format...) printf(format)
+#else
+	#define debug(format...) 
 #endif
 
 
@@ -43,13 +37,35 @@
  */
 CUartIntf::CUartIntf()
 {
-    ph0_uart_virtual_base = (void *)FPGA_UART0;
-	ph1_uart_virtual_base = (void *)FPGA_UART1;
+	int fd;
+	void *h2f_brige_virtual_base;
+	
+	if ((fd = open("/dev/mem", O_RDWR | O_SYNC)) == -1) {
+		fprintf(stderr, "Open /dev/mem failed!\n");
+		exit(-1);
+    }
+
+	h2f_brige_virtual_base = mmap(NULL, MMAP_SPAN, (PROT_READ | PROT_WRITE), MAP_SHARED, fd, MMAP_BASE);
+	if (h2f_brige_virtual_base == MAP_FAILED) {
+		fprintf(stderr, "Mmap regs failed!\n");
+		close(fd);
+		exit(-1);
+	}
+
+	ph0_uart_virtual_base = (u8 *)h2f_brige_virtual_base + UART0_BRIDGE_OFFSET;
+	ph1_uart_virtual_base =	(u8 *)h2f_brige_virtual_base + UART1_BRIDGE_OFFSET;
 	active_virtual_base = NULL;
+
+	close(fd);
 }
 
 CUartIntf::~CUartIntf()
 {
+	void *h2f_brige_virtual_base;
+
+	h2f_brige_virtual_base = (u8 *)ph0_uart_virtual_base - UART0_BRIDGE_OFFSET;
+	munmap(h2f_brige_virtual_base, MMAP_SPAN);
+	
 	ph0_uart_virtual_base = NULL;
 	ph1_uart_virtual_base = NULL;
 	active_virtual_base = NULL;
@@ -63,7 +79,6 @@ u8 CUartIntf::ReviceData(void)
 
 	reg_addr = __IO_CALC_ADDRESS_NATIVE(active_virtual_base, RXDATA_OFFSET);
 	reg_val = alt_read_half_word(reg_addr);
-	reg_val &= 0x7f;
 	
 	return (u8)reg_val;
 }
@@ -87,7 +102,8 @@ u8 CUartIntf::ReviceDataPoll(void)
 
 	reg_addr = __IO_CALC_ADDRESS_NATIVE(active_virtual_base, RXDATA_OFFSET);
 	reg_val = alt_read_half_word(reg_addr);
-	reg_val &= 0x7f;
+
+	debug("rev one byte\n");
 	
 	return (u8)reg_val;	
 
@@ -149,8 +165,7 @@ u8 CUartIntf::GetEndOfPacket(void)
 	u16 reg_val;
 
 	reg_addr = __IO_CALC_ADDRESS_NATIVE(active_virtual_base, ENDOFPACKET_OFFSET);
-	reg_val = alt_read_half_word(reg_addr);
-	reg_val &= 0x7f;	
+	reg_val = alt_read_half_word(reg_addr);	
 	
 	return (u8)reg_val;
 }
@@ -242,41 +257,80 @@ int CUartIntf::CheckError(u16 mask)
  */
 CPhUartIntf::CPhUartIntf()
 {
-	ClearStatus();
+	
 }
 
 CPhUartIntf::~CPhUartIntf()
 {
-	ClearStatus();
+	
 }
 
 void CPhUartIntf::ActivePh0(void)
 {
 	active_virtual_base = ph0_uart_virtual_base;
+	ClearStatus();
 }
 
 void CPhUartIntf::ActivePh1(void)
 {
 	active_virtual_base = ph1_uart_virtual_base;
+	ClearStatus();
 }
 
 
 void CPhUartIntf::PhTransmitCommand(u8 comd)
 {
-	
+	switch (comd) {
+	case 0x01:
+		TransmitDataPoll(0xFE);
+		TransmitDataPoll(0xFE);
+		TransmitDataPoll(0xFE);
+		TransmitDataPoll(4);		//byte number + 2
+		TransmitDataPoll(0x1);		//command code 
+		TransmitDataPoll(0);		//data 1
+		TransmitDataPoll(0);		//data 2
+		TransmitDataPoll(0xFB);		//sum
+		break;
+	default:
+		printf("ready to do..\n");
+		break;
+	}
 
 }
 
-int CPhUartIntf::PhReviceData(void *pdata)
+/* 返回收到的数据量 */
+int CPhUartIntf::PhReviceData(u8 comd, void *pdata)
 {
+	int i = 0;
+	u8 *p = (u8 *)pdata;
+	
+	switch (comd) {
+	case 0x01:
+		for (i = 0; i < 14; i++) 
+			*(p + i) = ReviceDataPoll();
+		break;
+	default:
+		printf("ready to do...\n");
+		break;
+	}
 
-	return 0;
+	return i;
+
 }
 
 int CPhUartIntf::PhTransmitCommand_ReviceData(u8 comd, void *pdata)
 {
+	int ret = 0;
+	
+	/* 先发送命令 */
+	PhTransmitCommand(comd);
 
-	return 0;
+	debug("transmit command done\n");
+
+	/* 再接收数据 */
+	ret = PhReviceData(comd, pdata);
+
+	return ret;
 }
 
 

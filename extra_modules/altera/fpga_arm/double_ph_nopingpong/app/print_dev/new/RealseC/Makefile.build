@@ -1,0 +1,51 @@
+#在这里放__build:是为了__build成为默认目标
+#不然会出错,因为接下来include Makefile中的目标会成为默认目标
+PHONY := __build
+__build:
+
+obj-y :=
+subdir-y :=
+EXTRA_CFLAGS :=
+
+#定义当前目录的obj-y,EXTRA_CFLAGS,CFLAGS_xx.o
+include Makefile
+
+# obj-y := a.o b.o c/ d/
+# $(filter %/, $(obj-y))   : c/ d/
+# __subdir-y  : c d
+# subdir-y    : c d
+__subdir-y := $(patsubst %/, %, $(filter %/, $(obj-y)))
+subdir-y += $(__subdir-y)
+
+# c/built-in.o d/built-in.o
+subdir_objs := $(foreach f, $(subdir-y), $(f)/built-in.o)
+
+# a.o b.o
+cur_objs := $(filter-out %/, $(obj-y))
+dep_files := $(foreach f, $(cur_objs), .$(f).d)
+dep_files := $(wildcard $(dep_files))
+
+#第二次编译后才有
+ifneq ($(dep_files), )
+  include $(dep_files)
+endif
+
+PHONY += $(subdir-y)
+
+.PHONY: $(PHONY)
+
+#先编译得到子目录的built-in.o然后再经过一系列步骤得到当前目录的built-in.o
+__build: $(subdir-y) built-in.o
+
+#编译得到子目录的built-in.o
+$(subdir-y):
+	make -C $@ -f $(TOPDIR)/Makefile.build
+
+#编译当前目录除了built-in.o之外的.o
+%.o : %.c
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$@) -Wp,-MD,.$@.d -c -o $@ $<	
+
+#连接子目录的built-in.o和当前目录除了built-in.o之外的.o得到当前目录的built-in.o
+#-r表示生成的是重定位目标,不然就可能会出错,因为如果连接其他的库这里没有指定
+built-in.o: $(cur_objs) $(subdir_objs)
+	$(LD) -r -o $@ $^

@@ -3,7 +3,7 @@ TARGET = app_uart_test
 
 
 CFLAGS := -O0 -mfpu=neon-fp16 -std=gnu99 -W -Wall -Werror -Wc++-compat -Wwrite-strings -Wstrict-prototypes -pedantic
-CPPFLAGS := -O0 -fPIC -Wall -mfpu=neon-fp16
+CPPFLAGS := -O0 -fPIC -Wall -mfpu=neon-fp16 -g
 ASMFLAGS := -mcpu=cotex-a9 -mfpu=neon-fp16
 
 CROSS_COMPILE := /home/hanglory/yezheng/toolchain/bin/arm-linux-gnueabihf-
@@ -40,6 +40,7 @@ $(TARGET):$(CFILES:.c=.o) $(CPPFILES:.cpp=.o) $(ASMFILES:.cpp=.o)
 clean:
 	$(RM) $(TARGET) $(CFILES:.c=.o) $(CPPFILES:.cpp=.o) $(ASMFILES:.S=.o)
 	$(RM) ${TARGET}
+	$(RM) tags
 
 
 .SUFFIXES: .cpp .c .o .S

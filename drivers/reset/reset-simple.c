@@ -19,6 +19,8 @@
 #include <linux/platform_device.h>
 #include <linux/reset-controller.h>
 #include <linux/spinlock.h>
+#include <linux/delay.h>
+
 
 #include "reset-simple.h"
 
@@ -78,10 +80,20 @@ static int reset_simple_status(struct reset_controller_dev *rcdev,
 	return !(reg & BIT(offset)) ^ !data->status_active_low;
 }
 
+static int reset_simple_reset(struct reset_controller_dev *rcdev, unsigned long id)
+{
+	reset_simple_assert(rcdev, id);
+	udelay(10);
+	reset_simple_deassert(rcdev, id);
+    
+	return 0;
+}
+
 const struct reset_control_ops reset_simple_ops = {
 	.assert		= reset_simple_assert,
 	.deassert	= reset_simple_deassert,
 	.status		= reset_simple_status,
+	.reset		= reset_simple_reset,
 };
 EXPORT_SYMBOL_GPL(reset_simple_ops);
 

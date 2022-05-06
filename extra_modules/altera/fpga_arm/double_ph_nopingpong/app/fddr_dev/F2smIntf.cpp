@@ -8,8 +8,9 @@
 #include <string.h>
 #include "F2smIntf.h"
 
+#include "F2smIntf.h"
 #include "alt_f2sm_regs.h"
-
+#include "FpgaRegs.h"
 
 #define FDDR_DEV "/dev/fddr_ram"
 
@@ -61,7 +62,7 @@ void CF2smIntf::testinit()
 {
     void * reg_addr =  NULL;
 
-    reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, 37);
+    reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, PRINT_OPEN);
     alt_write_word(reg_addr,  0x0);
 
     return;
@@ -72,7 +73,7 @@ void CF2smIntf::ResetErrCounter()
 {
     void * reg_addr =  NULL;
 
-    reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, 35);
+    reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, READ_CHECK_ERR_CLEAN);
     alt_write_word(reg_addr,  _F2SM_FDDR_ERESET_UP);
     alt_write_word(reg_addr,  _F2SM_FDDR_ERESET_DOWN);
     return;
@@ -109,10 +110,10 @@ void CF2smIntf::StartWrite(int seed)
 
     ResetErrCounter();
 
-    reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, 32);
+    reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, PRBS_SEED);
     alt_write_word(reg_addr,  (unsigned int)seed);
 
-    reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, 30);
+    reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, WRITE_BEGIN);
     alt_write_word(reg_addr,  _F2SM_FDDRW_START_UP);
     //alt_write_word(reg_addr,  _F2SM_FDDRW_START_DOWN);
 
@@ -122,7 +123,7 @@ void CF2smIntf::StartWrite(int seed)
 void CF2smIntf::StartRead()
 {
     void * reg_addr =  NULL;
-    reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, 31);
+    reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, READ_BEGIN);
     alt_write_word(reg_addr,  _F2SM_FDDRR_START_UP);
     //alt_write_word(reg_addr,  _F2SM_FDDRR_START_DOWN);
 
@@ -134,11 +135,11 @@ bool CF2smIntf::CheckResult()  // Read result
     unsigned int result = 0;
     unsigned int errind = 0;
 
-    void * reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, 33);
+    void * reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, READ_CHECK_ERR_INDEX);
     result = alt_read_word(reg_addr);
     errind = result & _F2SM_FDDR_ERR_IND_MASK;
 
-    reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, 34);
+    reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, READ_CHECK_ERR_CNT);
     result = alt_read_word(reg_addr);
 
     if(errind == _F2SM_FDDR_ERR_IND)   // Error
@@ -153,7 +154,7 @@ bool CF2smIntf::CheckResult()  // Read result
 bool CF2smIntf::IsReady()
 {
     unsigned int result = 0;
-    void * reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, 28);
+    void * reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, I_PLL_PHCLK_LOCKED_FPGA_CLK_100_LOCK);
     result = alt_read_word(reg_addr);
     result &= _F2SM_FDDR_SYSCLOCK_RDY_MASK;
     if(result != _F2SM_FDDR_SYSCLOCK_RDY)
@@ -162,7 +163,7 @@ bool CF2smIntf::IsReady()
         return false;
     }
 
-    reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, 29);
+    reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, LOCAL_INIT_DONE_LOCAL_CAL_SUCCESS_LOCAL_CAL_FAIL);
     result = alt_read_word(reg_addr);
     result &= _F2SM_FDDR_DDR_RDY_MASK;
     if(result != _F2SM_FDDR_DDR_RDY)

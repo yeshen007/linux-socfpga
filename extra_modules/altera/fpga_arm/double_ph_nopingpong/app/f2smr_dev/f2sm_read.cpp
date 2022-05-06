@@ -43,7 +43,7 @@ void fix_do_test(CF2smIntf &f2sm, int ost_frb_count, int tnd_frb_count)
 {
    
 	int frb_size = 3*1024;
-	int one_ph_buf_size = 12 * 1024 * 1024;
+	int one_ph_buf_size = 16 * 1024 * 1024;
 	int buf_size = 2 * one_ph_buf_size;
 
     char *ost_pDataBuf = (char *)aligned_alloc(4096, buf_size); 
@@ -188,7 +188,7 @@ void fix_do_test(CF2smIntf &f2sm, int ost_frb_count, int tnd_frb_count)
 //				printf("press to 2nd send:\n");
 //				getchar();
 				gettimeofday(&tv_s,NULL);
-				f2sm.StartTransfer_down_seed(ost_ph1_randv, ost_ph2_randv, ost_frb_count);
+				f2sm.StartTransfer_down_seed(tnd_ph1_randv, tnd_ph2_randv, tnd_frb_count);
 				u32SendCount += tnd_frb_count;
 				if (u32SendCount > 0x0FFFFF00) {
 					printf("test done\n");

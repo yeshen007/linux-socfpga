@@ -960,7 +960,7 @@ int __uio_register_device(struct module *owner,
 	if (ret)
 		goto err_device_create;
 
-	ret = uio_dev_add_attributes(idev);
+	ret = uio_dev_add_attributes(idev);		/*  */
 	if (ret)
 		goto err_uio_dev_add_attributes;
 

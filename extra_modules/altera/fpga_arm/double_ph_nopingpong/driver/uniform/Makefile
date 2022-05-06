@@ -24,6 +24,7 @@ default:
 
 clean:
 	$(MAKEARCH) -C $(KDIR) M=${shell pwd} clean
+	rm tags -f
 
 help:
 	$(MAKEARCH) -C $(KDIR) M=${shell pwd} help

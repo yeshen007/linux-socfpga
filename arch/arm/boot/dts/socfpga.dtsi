@@ -556,7 +556,7 @@
 			reg = <0xff702000 0x2000>;
 			interrupts = <0 120 4>;
 			interrupt-names = "macirq";
-			mac-address = [58 32 a0 f1 ef 02];/* Filled in by U-Boot */
+			mac-address = [58 32 a0 f1 ef 02];	/* Filled in by U-Boot */
 			clocks = <&emac_1_clk>;
 			clock-names = "stmmaceth";
 			resets = <&rst EMAC1_RESET>;

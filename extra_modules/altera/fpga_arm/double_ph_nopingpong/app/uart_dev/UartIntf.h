@@ -66,7 +66,7 @@ public:
      * 先发送命令comd给喷头,然后等待接收喷头发回的响应数据
 	 */
 	void PhTransmitCommand(u8 comd);
-	int PhReviceData(void *pdata);	
+	int PhReviceData(u8 comd, void *pdata);	
 	int PhTransmitCommand_ReviceData(u8 comd, void *pdata);
 };
 
