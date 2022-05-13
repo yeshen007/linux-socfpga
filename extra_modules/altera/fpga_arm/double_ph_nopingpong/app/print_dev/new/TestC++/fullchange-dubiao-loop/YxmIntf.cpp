@@ -236,7 +236,7 @@ void CYxmIntf::ConfigRasterSim()
 	reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, O_MASTER_RASTER_SEL);
 	alt_write_word(reg_addr, 0x1);
 	reg_addr = __IO_CALC_ADDRESS_NATIVE(virtual_base, O_MASTER_RASTER_SIM_PERIOD);
-	alt_write_word(reg_addr, 1000);	
+	alt_write_word(reg_addr, 2000);	
 }
 
 void CYxmIntf::ConfigPdSim()

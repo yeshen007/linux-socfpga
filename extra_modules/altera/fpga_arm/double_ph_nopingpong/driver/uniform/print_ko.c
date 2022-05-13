@@ -230,15 +230,15 @@ down_dev_write(struct file *fp,
 	loff_t max_offset;
 	char *io_buf;
 	int buf_index;
-	int writepos;
+
 
 	if (down_interruptible(&dev->sem)) {
 		pr_err("down_dev_write sem interrupted exit\n");
-		return -ERESTARTSYS;
+		return -EINTR;
 	}	
 
 	buf_index = dev->cur_io_buf_index;
-	if (buf_index != 0) {
+	if (buf_index != DOWN_QUEUE_AVAILABLE) {
 		pr_err("down_dev_write buf_index error exit\n");
 		return -ERESTARTSYS;		
 	}
@@ -247,27 +247,26 @@ down_dev_write(struct file *fp,
 	io_buf = dev->p_uio_info->mem[DOWN_MEM_INDEX].internal_addr;
 	max_offset = dev->p_uio_info->mem[DOWN_MEM_INDEX].size;
 
-	writepos = 0;
-	if ((temp_count + writepos) > max_offset) {
+	if (temp_count > max_offset) {
 		pr_err("down_dev_write count too big error exit\n");
-		return -ERESTARTSYS;
+		return -EINVAL;
 	}
 
 	dev->write_count++;
 
 	if (temp_count > 0) {
 		if (copy_from_user
-		    (io_buf + writepos, user_buffer, temp_count)) {
+		    (io_buf, user_buffer, temp_count)) {
 			up(&dev->sem);
 			pr_err("down_dev_write copy_from_user exit\n");
-			return -EFAULT;
+			return -ENOMEM;
 		}
 
         if (copy_from_user
-		    (io_buf + PH1_OFFSET + writepos, user_buffer + PH1_USERBUF_OFFSET, temp_count)) {
+		    (io_buf + PH1_OFFSET, user_buffer + PH1_USERBUF_OFFSET, temp_count)) {
 			up(&dev->sem);
 			pr_err("down_dev_write copy_from_user exit\n");
-			return -EFAULT;
+			return -ENOMEM;
 		}
 	}
 
@@ -293,22 +292,16 @@ up_dev_read(struct file *fp, char __user *user_buffer,
 	size_t cur_count = count;	
 	size_t the_size = cur_count;
 	int mem_index = UP_QUEUE_NOT_AVAILABLE;
-	int readpos;
 	unsigned long flags;
 
 
 	if (down_interruptible(&dev->sem)) {
 		pr_err("up_dev_read sem interrupted exit\n");
-		return -ERESTARTSYS;
+		return -EINTR;
 	}	
 
 	cur_irq_cnt = get_current_irq_count_up();
-	
-	if (*offset != 0) {
-		up(&dev->sem);
-		pr_info("up_dev_read offset != 0 exit\n");
-		return -EINVAL;
-	}
+
 
 	spin_lock_irqsave(&g_irq_lock, flags);
 	mem_index = DeQueueF2sm(&g_avail_membuf_queue_up);
@@ -326,7 +319,7 @@ up_dev_read(struct file *fp, char __user *user_buffer,
 							(which_interrput_up != NON_STOP) 
 							)) {
 				pr_err("up_dev_read wait interrupted exit\n");
-				return -ERESTARTSYS;
+				return -EINTR;
 			}
 
 			/* 几种情况：
@@ -338,7 +331,7 @@ up_dev_read(struct file *fp, char __user *user_buffer,
 
 			if (down_interruptible(&dev->sem)) {
 				pr_err("up_dev_read sem interrupted exit\n");
-				return -ERESTARTSYS;
+				return -EINTR;
 			}
 		}
 	}
@@ -384,27 +377,26 @@ up_dev_read(struct file *fp, char __user *user_buffer,
 
 ret_to_user_with_dma_interrupt:
 ret_to_user_with_print_interrupt_after_dma_interrupt:
-	readpos = 0;
 	the_f2sm_ram_dev_up.cur_io_buf_index = mem_index;
 	the_size = dev->p_uio_info->mem[UP_MEM_INDEX].size;		
-	if (count > (the_size - readpos)) {   
-		cur_count = the_size - readpos;		//我的设计中不可能
+	if (count > the_size) {   
+		cur_count = the_size;		
 		up(&dev->sem);
 		pr_err("up_dev_read pos too big exit\n");
-		return -ERESTARTSYS;
+		return -EINVAL;
 	}
 	io_buf = dev->p_uio_info->mem[UP_MEM_INDEX].internal_addr;		
 	
 	if (copy_to_user(user_buffer, io_buf, cur_count)) {
 		up(&dev->sem);
 		pr_err("up_dev_read copy_to_user ph0 exit\n");
-		return -EFAULT;
+		return -ENOMEM;
 	}
 	
 	if (copy_to_user(user_buffer + PH1_USERBUF_OFFSET, io_buf + PH1_OFFSET, cur_count)) {
 		up(&dev->sem);
 		pr_err("up_dev_read copy_to_user ph1 exit\n");
-		return -EFAULT;
+		return -ENOMEM;
 	}
 
 	/* 如果是情况2则接则往下走,情况1则返回用户,其他情况错误 */
@@ -429,11 +421,11 @@ ret_to_user_with_dma_interrupt_after_print_interrupt:
 	if (which_interrput_up == NORMAL_STOP) {
 		spin_unlock_irqrestore(&g_irq_lock, flags);
 		up(&dev->sem);
-		return 1;
+		return 0;
 	} else if (which_interrput_up == ACCIDENT_STOP) {
 		spin_unlock_irqrestore(&g_irq_lock, flags);
 		up(&dev->sem);
-		return 2;
+		return -EFAULT;
 	} else {
 		spin_unlock_irqrestore(&g_irq_lock, flags);
 		up(&dev->sem);
@@ -459,18 +451,13 @@ down_dev_read(struct file *fp, char __user *user_buffer,
 
 	if (down_interruptible(&dev->sem)) {
 	  pr_err("down_dev_read sem interrupted exit\n");
-	  return -ERESTARTSYS;
+	  return -EINTR;
 	}	
 	
 	cur_irq_cnt = get_current_irq_count_down();
 
-	if (*offset != 0) {
-	  up(&dev->sem);
-	  pr_err("down_dev_read offset != 0 exit\n");
-	  return -EINVAL;
-	}
 	
-	if (count != 8) {  //sizeof(struct f2sm_read_info_t)
+	if (count != sizeof(struct f2sm_read_info_t)) {  
 		up(&dev->sem);
 		pr_err("down_dev_read count != 8 exit\n");
 		return -EINVAL;
@@ -494,7 +481,7 @@ down_dev_read(struct file *fp, char __user *user_buffer,
 							(which_interrput_down != NON_STOP) 
 							)) {
 				pr_err("down_dev_read wait interrupted exit\n");
-				return -ERESTARTSYS;
+				return -EINTR;
 			}
 	
 			/* 几种情况：
@@ -506,33 +493,33 @@ down_dev_read(struct file *fp, char __user *user_buffer,
 
 			if (down_interruptible(&dev->sem)) {
 				pr_err("down_dev_read sem interrupted exit\n");
-				return -ERESTARTSYS;
+				return -EINTR;
 			}
 		}
 	}
 
-/* situation_1 */
+	/* situation_1 */
 	spin_lock_irqsave(&g_irq_lock, flags);
 	if (mem_index == DOWN_QUEUE_AVAILABLE && which_interrput_down == NON_STOP && print_state_down == UNDONE) {
 		spin_unlock_irqrestore(&g_irq_lock, flags);
 		goto ret_to_user_with_dma_interrupt;
 	}
 
-/* situation_2 */
+	/* situation_2 */
 	if (mem_index == DOWN_QUEUE_AVAILABLE && which_interrput_down != NON_STOP && print_state_down == DONE) {
 		spin_unlock_irqrestore(&g_irq_lock, flags);
 		pr_info("down_dev_read situation 2\n");
 		goto ret_to_user_with_print_interrupt_after_dma_interrupt;
 	}
 
-/* situation_3 */
+	/* situation_3 */
 	if (mem_index != DOWN_QUEUE_AVAILABLE && which_interrput_down != NON_STOP && print_state_down == DONE) {
 		spin_unlock_irqrestore(&g_irq_lock, flags);
 		pr_info("down_dev_read situation 3\n");
 		goto ret_to_user_with_print_interrupt;
 	}
 
-/* situation_4 */
+	/* situation_4 */
 	if (mem_index == DOWN_QUEUE_AVAILABLE && which_interrput_down != NON_STOP && print_state_down == UNDONE) {
 		spin_unlock_irqrestore(&g_irq_lock, flags);
 		pr_info("down_dev_read situation 4\n");
@@ -560,7 +547,7 @@ ret_to_user_with_print_interrupt_after_dma_interrupt:
 	if (copy_to_user(user_buffer, &cur_read_info, count)) {
 		pr_err("down_dev_read copy_to_user exit\n");
 		up(&dev->sem);
-		return -EFAULT;
+		return -ENOMEM;
 	}
 
 	/* 如果是情况2则接则往下走，情况1则返回用户,其他情况错误 */
@@ -585,11 +572,11 @@ ret_to_user_with_dma_interrupt_after_print_interrupt:
 	if (which_interrput_down == NORMAL_STOP) {
 		spin_unlock_irqrestore(&g_irq_lock, flags);
 		up(&dev->sem);
-		return 1;
+		return 0;
 	} else if (which_interrput_down == ACCIDENT_STOP) {
 		spin_unlock_irqrestore(&g_irq_lock, flags);
 		up(&dev->sem);
-		return 2;
+		return -EFAULT;
 	} else {
 		spin_unlock_irqrestore(&g_irq_lock, flags);
 		up(&dev->sem);
@@ -607,7 +594,7 @@ static int up_dev_open(struct inode *ip, struct file *fp)
 
 	if (down_interruptible(&dev->sem)) {
 		pr_info("up_dev_open sem interrupted exit\n");
-		return -ERESTARTSYS;
+		return -EINTR;
 	}
 
 	fp->private_data = dev;		//设置为设备文件/dev/up_dev的私有数据
@@ -633,7 +620,7 @@ static int down_dev_open(struct inode *ip, struct file *fp)
 
 	if (down_interruptible(&dev->sem)) {
 		pr_info("down_dev_open sem interrupted exit\n");
-		return -ERESTARTSYS;
+		return -EINTR;
 	}
 
 	fp->private_data = dev;		//设置为设备文件/dev/down_dev的私有数据
@@ -660,7 +647,7 @@ static int up_dev_release(struct inode *ip, struct file *fp)
 
 	if (down_interruptible(&dev->sem)) {
 		pr_info("up_dev_release sem interrupted exit\n");
-		return -ERESTARTSYS;
+		return -EINTR;
 	}
 
 	dev->release_count++;
@@ -679,7 +666,7 @@ static int down_dev_release(struct inode *ip, struct file *fp)
 
 	if (down_interruptible(&dev->sem)) {
 		pr_info("down_dev_release sem interrupted exit\n");
-		return -ERESTARTSYS;
+		return -EINTR;
 	}
 
 	dev->release_count++;
@@ -696,50 +683,20 @@ static int down_dev_release(struct inode *ip, struct file *fp)
 /* 用户读取寄存器 */
 static long up_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	long ret;
-	void __iomem *reg_addr;
+	long ret = 0;
 	
-	user_info_t user_info;
-	unsigned long reg_offset;
-	unsigned long size;
-	void __user * user_addr;
 
 	struct platform_device *pdev;
 
 	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_up;
 	if (down_interruptible(&dev->sem)) {
 		pr_info("up_dev_ioctl sem interrupted exit\n");
-		return -ERESTARTSYS;
+		return -EINTR;
 	}
 
-	/* 提取用户信息,arg是一个指向user_info_t的指针 */
-	ret = copy_from_user(&user_info, (void __user*)arg, sizeof(user_info_t));
-	if (ret) {
-		pr_err("down_dev_ioctl Copy user arg failed!\n");
-		up(&dev->sem);
-		return -EFAULT;
-	}
-	reg_offset = user_info.offset;	//寄存器号
-	size = user_info.size;			//需要读写的寄存器内容字节数
-	user_addr = user_info.addr;		//需要将寄存器内容写入或读出的用户地址	
 
 	switch (cmd) {
-		
-	case IOC_CMD_UP_NONE:
-		break;
-	
-	case IOC_CMD_UP_READ:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, reg_offset);
-		ret = copy_to_user(user_addr, reg_addr, size);
-		if (ret) {
-			pr_err("IOC_CMD_UP_READ Copy to user failed!\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}
-		break;
-		
-	case IOC_CMD_UP_WRITE:
-		break;
+
 
 	case IOC_CMD_RESET:
 		pdev = the_f2sm_ram_dev_up.pdev;
@@ -747,12 +704,13 @@ static long up_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
  		if (ret) {
         	pr_err("failed to reset device\n");
 			up(&dev->sem);
-			return -EFAULT;
+			return -ERESTARTSYS;
         }	
 		break;
 	default:
 		pr_err("unsupported up ioctl cmd 0x%x!\n", cmd);
-		break;
+		up(&dev->sem);
+		return -EINVAL;
 	}
 
 	up(&dev->sem);
@@ -762,7 +720,7 @@ static long up_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 /* 用户设置寄存器 */
 static long down_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	long ret;
+	long ret = 0;
 	void __iomem *reg_addr;
 	
 	user_info_t user_info;
@@ -771,11 +729,13 @@ static long down_dev_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	void __user * user_addr;
 
 	struct platform_device *pdev;
+
+	unsigned long *dma_info;
 	
 	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_down;
 	if (down_interruptible(&dev->sem)) {
 		pr_info("down_dev_ioctl sem interrupted exit\n");
-		return -ERESTARTSYS;
+		return -EINTR;
 	}
 
 	/* 提取用户信息,arg是一个指向user_info_t的指针 */
@@ -783,7 +743,7 @@ static long down_dev_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	if (ret) {
 		pr_err("down_dev_ioctl Copy user arg failed!\n");
 		up(&dev->sem);
-		return -EFAULT;
+		return -ENOMEM;
 	}
 	reg_offset = user_info.offset;	//寄存器号
 	size = user_info.size;			//需要读写的寄存器内容字节数
@@ -791,7 +751,7 @@ static long down_dev_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 	switch (cmd) {
 		
-	case IOC_CMD_DOWN_NONE:
+	case IOC_CMD_NONE:
 		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, reg_offset);
 		switch (reg_offset) {
 		case PRINTER_DATA_MASTER_READ_CONTROL_READ_EN:
@@ -800,21 +760,28 @@ static long down_dev_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			iowrite32(0x0, reg_addr);			
 			break;
 		default:
-			pr_err("unsupported down ioctl reg 0x%x!\n", cmd);
+			pr_err("unsupported IOC_CMD_NONE reg 0x%x!\n", cmd);
 			break;
 		}
 		break;
 		
-	case IOC_CMD_DOWN_READ:
+	case IOC_CMD_READ:
+		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, reg_offset);
+		ret = copy_to_user(user_addr, reg_addr, size);
+		if (ret) {
+			pr_err("IOC_CMD_READ Copy to user failed!\n");
+			up(&dev->sem);
+			return -ENOMEM;
+		}		
 		break;
 		
-	case IOC_CMD_DOWN_WRITE:
+	case IOC_CMD_WRITE:
 		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, reg_offset);
 		ret = copy_from_user(reg_addr, user_addr, size);
 		if (ret) {
-			pr_err("IOC_CMD_DOWN_WRITE Copy from user failed!\n");
+			pr_err("IOC_CMD_WRITE Copy from user failed!\n");
 			up(&dev->sem);
-			return -EFAULT;
+			return -ENOMEM;
 		}		
 		break;
 		
@@ -824,12 +791,31 @@ static long down_dev_ioctl(struct file *file, unsigned int cmd, unsigned long ar
  		if (ret) {
         	pr_err("failed to reset device\n");
 			up(&dev->sem);
-			return -EFAULT;
+			return -ERESTARTSYS;
         }		
 		break;
+
+	case IOC_CMD_PH_DMA:
+		size = 4 * sizeof(unsigned long);
+		dma_info = (unsigned long*)kzalloc(size, GFP_KERNEL);
+		dma_info[0] = MEM_PHY_UP;
+		dma_info[1] = MEM_PHY_UP_SIZE;
+		dma_info[2] = MEM_PHY_DOWN;
+		dma_info[3] = MEM_PHY_DOWN_SIZE;
+		ret = copy_to_user(user_addr, dma_info, size);
+		if (ret) {
+			pr_err("IOC_CMD_PH_DMA Copy to user failed!\n");
+			kfree(dma_info);
+			up(&dev->sem);
+			return -ENOMEM;
+		}
+		kfree(dma_info);
+		break;		
+		
 	default:
 		pr_err("unsupported down ioctl cmd 0x%x!\n", cmd);
-		break;
+		up(&dev->sem);
+		return -EINVAL;
 	}
 
 	up(&dev->sem);
@@ -837,320 +823,6 @@ static long down_dev_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 }
 
 
-#if 0
-/* 
- * 读取寄存器信息 
- */
-static long up_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
-{
-	long ret = 0;
-	void __iomem *reg_addr;
-	unsigned long reg_val;
-	unsigned long __user *puser = (unsigned long __user*)arg;
-
-	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_up;
-	if (down_interruptible(&dev->sem)) {
-		pr_info("up_dev_ioctl sem interrupted exit\n");
-		return -ERESTARTSYS;
-	}
-
-	switch (cmd) {
-	case UP_IOC_FPGA_TYPE:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, FPGA_TYPE);
-		reg_val = ioread32(reg_addr);
-		if (put_user(reg_val, puser)) {
-			pr_err("UP_IOC_FPGA_TYPE up_dev_ioctl put_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}
-		break;	
-	case UP_IOC_FPGA_DATE:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, FPGA_DATE);
-		reg_val = ioread32(reg_addr);
-		if (put_user(reg_val, puser)) {
-			pr_err("UP_IOC_FPGA_DATE up_dev_ioctl put_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}	
-		break;
-	case UP_IOC_BASE_IMAGE_TRANFER:	
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, I_BASE_IMAGE_TRANFER_COMPLETE);
-		reg_val = ioread32(reg_addr);
-		if (put_user(reg_val, puser)) {
-			pr_err("UP_IOC_BASE_IMAGE_TRANFER up_dev_ioctl put_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}
-		break;	
-	default:
-		pr_err("unsupported up ioctl cmd 0x%x!\n", cmd);
-		break;
-	}
-
-	up(&dev->sem);
-	
-	return ret;
-}
-
-/*
- * 配置打印参数
- */
-static long down_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
-{
-	long ret = 0;
-	void __iomem *reg_addr;
-	unsigned long reg_val;
-	unsigned long __user *puser = (unsigned long __user*)arg;
-
-	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_down;
-	if (down_interruptible(&dev->sem)) {
-		pr_info("down_dev_ioctl sem interrupted exit\n");
-		return -ERESTARTSYS;
-	}
-
-	switch (cmd) {
-		
-	/* prbs和dma */
-	case DOWN_IOC_DOWN_PH0_DMA_ADDR:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, PRINTER_DATA_MASTER_READ_CONTROL_READ_BASE_PH0);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_DOWN_PH0_DMA_ADDR down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}	
-		iowrite32(reg_val, reg_addr);
-		break;		
-	case DOWN_IOC_DOWN_PH1_DMA_ADDR:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, PRINTER_DATA_MASTER_READ_CONTROL_READ_BASE_PH1);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_DOWN_PH1_DMA_ADDR down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}	
-		iowrite32(reg_val, reg_addr);
-		break;			
-	case DOWN_IOC_DOWN_BLOCK_SIZE:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, PRINTER_DATA_MASTER_READ_CONTROL_READ_BLOCK_SIZE);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_DOWN_BLOCK_SIZE down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}	
-		iowrite32(reg_val, reg_addr);
-		break;			
-	case DOWN_IOC_DOWN_DMA_EN:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, PRINTER_DATA_MASTER_READ_CONTROL_READ_EN);
-		iowrite32(0x1, reg_addr);
-		iowrite32(0x0, reg_addr);
-		break;	
-	case DOWN_IOC_DOWN_PH0_PRB_SEED:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, PRINTER_DATA_MASTER_READ_CONTROL_READ_SEED_PH0);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_DOWN_PH0_PRB_SEED down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}	
-		iowrite32(reg_val, reg_addr);
-		break;	
-	case DOWN_IOC_DOWN_PH1_PRB_SEED:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, PRINTER_DATA_MASTER_READ_CONTROL_READ_SEED_PH1);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_DOWN_PH1_PRB_SEED down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}	
-		iowrite32(reg_val, reg_addr);
-		break;		
-	case DOWN_IOC_UP_PH0_DMA_ADDR:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, PRINTER_DATA_MASTER_WRITE_CONTROL_WRITE_BASE_PH0);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_UP_PH0_DMA_ADDR down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}	
-		iowrite32(reg_val, reg_addr);
-		break;		
-	case DOWN_IOC_UP_PH1_DMA_ADDR:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, PRINTER_DATA_MASTER_WRITE_CONTROL_WRITE_BASE_PH1);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_UP_PH1_DMA_ADDR down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}	
-		iowrite32(reg_val, reg_addr);
-		break;		
-	case DOWN_IOC_UP_BLOCK_SIZE:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, PRINTER_DATA_MASTER_WRITE_CONTROL_WRITE_BLOCK_SIZE);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_UP_BLOCK_SIZE down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}	
-		iowrite32(reg_val, reg_addr);
-		break;			
-	case DOWN_IOC_UP_DMA_EN:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, PRINTER_DATA_MASTER_WRITE_CONTROL_WRITE_EN);
-		iowrite32(0x1, reg_addr);
-		iowrite32(0x0, reg_addr);
-		break;		
-	case DOWN_IOC_UP_PH0_PRB_SEED:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, PRINTER_DATA_MASTER_WRITE_CONTROL_WRITE_SEED_PH0);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_UP_PH0_PRB_SEED down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}	
-		iowrite32(reg_val, reg_addr);
-		break;		
-	case DOWN_IOC_UP_PH1_PRB_SEED:					
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, PRINTER_DATA_MASTER_WRITE_CONTROL_WRITE_SEED_PH1);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_UP_PH1_PRB_SEED down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}	
-		iowrite32(reg_val, reg_addr);
-		break;			
-		
-	/* 打印控制 */
-	case DOWN_IOC_PRINT_OPEN:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, PRINT_OPEN);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_PRINT_OPEN down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}	
-		iowrite32(reg_val, reg_addr);
-		break;
-	case DOWN_IOC_LOOP_TEST:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, O_LOOP_TEST_EN);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_LOOP_TEST down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}	
-		iowrite32(reg_val, reg_addr);
-		break;		
-	case DOWN_IOC_DATA_TEST:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, O_TEST_DATA_EN);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_DATA_TEST down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}
-		iowrite32(reg_val, reg_addr);
-		break;		
-	case DOWN_IOC_MASTER:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, O_MASTER_INDICATOR);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_MASTER down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}
-		iowrite32(reg_val, reg_addr);
-		break;			
- 	case DOWN_IOC_SYNC_SIM:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, MASTER_SYNC_SIM_EN);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_SYNC_SIM down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}
-		iowrite32(reg_val, reg_addr);
-		break;		
-	case DOWN_IOC_BASE_IMAGE:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, O_BASE_IMAGE_EN);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_BASE_IMAGE down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}
-		iowrite32(reg_val, reg_addr);
-		break;	
-		
-	/* 配置参数 */
-	case DOWN_IOC_RASTER_SIM_PARAMS:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, O_MASTER_RASTER_SEL);
-		if (copy_from_user(reg_addr, puser, BYTES_NUM_RASTER_SIM_PARAMS)) {
-			pr_err("DOWN_IOC_RASTER_SIM_PARAMS down_dev_ioctl copy_from_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}
-		break;
-	case DOWN_IOC_PD_SIM_PARAMS:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, O_MASTER_PD_SEL);
-		if (copy_from_user(reg_addr, puser, BYTES_NUM_PD_SIM_PARAMS)) {
-			pr_err("DOWN_IOC_PD_SIM_PARAMS down_dev_ioctl copy_from_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}		
-		break;		
-	case DOWN_IOC_DIVISOR_PARAMS:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, O_MASTER_DPI_D_FACTOR);
-		if (copy_from_user(reg_addr, puser, BYTES_NUM_DIVISOR_PARAMS)) {
-			pr_err("DOWN_IOC_DIVISOR_PARAMS down_dev_ioctl copy_from_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}			
-		break;			
-	case DOWN_IOC_JOB_PARAMS:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, O_WORK_MODE);
-		if (copy_from_user(reg_addr, puser, BYTES_NUM_JOB_PARAMS)) {
-			pr_err("DOWN_IOC_JOB_PARAMS down_dev_ioctl copy_from_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}		
-		break;			
-	case DOWN_IOC_PRINT_OFFSET:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, O_PH_OFFSET);
-		if (copy_from_user(reg_addr, puser, BYTES_NUM_PRINT_OFFSET)) {
-			pr_err("DOWN_IOC_PRINT_OFFSET down_dev_ioctl copy_from_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}				
-		break;			
-	case DOWN_IOC_FIRE_DELAY:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, O_DPI_DELAY_NUM_PH0);
-		if (copy_from_user(reg_addr, puser, BYTES_NUM_FIRE_DELAY)) {
-			pr_err("DOWN_IOC_FIRE_DELAY down_dev_ioctl copy_from_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}			
-		break;			
-	case DOWN_IOC_NOZZLE_SWITCH:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, O_SW_INIT_EN);
-		if (copy_from_user(reg_addr, puser, BYTES_NUM_NOZZLE_SWITCH)) {
-			pr_err("DOWN_IOC_NOZZLE_SWITCH down_dev_ioctl copy_from_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}		
-		break;			
-	case DOWN_IOC_SEARCH_LABEL_PARAMS:
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, O_PD_CHK_THRESHOLD);
-		if (get_user(reg_val, puser)) {
-			pr_err("DOWN_IOC_SEARCH_LABEL_PARAMS down_dev_ioctl get_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}	
-		iowrite32(reg_val, reg_addr);	
-		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, O_PD_SERACH_MODE);
-		if (copy_from_user(reg_addr, puser + 1, BYTES_NUM_SEARCH_LABEL_PARAMS - 1)) {
-			pr_err("DOWN_IOC_SEARCH_LABEL_PARAMS down_dev_ioctl copy_from_user exit\n");
-			up(&dev->sem);
-			return -EFAULT;
-		}		
-		break;	
-
-	default:
-		pr_err("unsupported down ioctl cmd 0x%x!\n", cmd);
-		break;
-	}
-
-	up(&dev->sem);
-	
-	return ret;
-}
-#endif
 
 static const struct file_operations up_dev_fops = {
 	.owner = THIS_MODULE,

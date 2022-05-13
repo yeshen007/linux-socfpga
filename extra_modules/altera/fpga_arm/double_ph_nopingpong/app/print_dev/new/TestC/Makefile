@@ -9,7 +9,7 @@ CROSS_COMPILE := /home/hanglory/yezheng/toolchain/bin/arm-linux-gnueabihf-
 CC := $(CROSS_COMPILE)gcc
 C++ := $(CROSS_COMPILE)g++
 ASM := $(CROSS_COMPILE)as
-LINK := $(CROSS_COMPILE)g++
+LINK := $(CROSS_COMPILE)g++ -lpthread
 
 
 CFLAGS += -I.
@@ -25,7 +25,7 @@ RM := cs-rm -rf
 endif
 
 CFILES := print_config_control.c utils.c
-CFILES += app_full_change_no_read_label_ioctl_reduce.c 
+CFILES += app_base_change_no_read_label_test.c 
 
 CPPFILES :=	
 

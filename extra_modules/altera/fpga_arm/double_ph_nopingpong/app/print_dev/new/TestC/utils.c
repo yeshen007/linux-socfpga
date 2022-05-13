@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/ioctl.h>
+
 
 #include "utils.h"
 
@@ -64,5 +66,33 @@ int check_fpga_data(void *ph0_data, void *ph1_data, u32 block_size, u32 block_cn
 	}	
 
 	return 0;
+}
+
+
+int Ioctl(int fd, unsigned long cmd, void *arg)
+{
+	int ret;
+	ret = ioctl(fd, cmd, (unsigned long)arg);
+	if (ret) {
+		switch (ret) {
+		case HAN_E_INT:
+			printf("Ioctl interrupted\n");
+			break;
+		case HAN_E_BAD_ADDR:
+			printf("Ioctl bad addr\n");
+			break;
+		case HAN_E_BAD_ARG:
+			printf("Ioctl bad cmd %lx\n", cmd);
+			break;
+		case HAN_E_SYS_ERR:
+			printf("Ioctl system wrong in driver\n");
+			break;
+		default:
+			printf("Ioctl impossible get here!\n");
+			break;
+		}
+		return ret;
+	}
+	return ret;
 }
 

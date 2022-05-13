@@ -66,26 +66,30 @@ struct dev_data_st
 #define IS_F2SM_QUEUE_FULL(buf) (((buf->tail + 1) & 0x3) == buf->head) 
 
 
+#define MEM_PHY_UP 0x30000000				//上行dma buffer物理地址,ph0 0x30000000,ph1 0x31000000
+#define MEM_PHY_UP_SIZE 0x02000000			//上行dma buffer大小,ph0和ph1各0x01000000
+#define MEM_PHY_DOWN 0x32000000				//下行dma buffer物理地址,ph0 0x32000000,ph1 0x33000000
+#define MEM_PHY_DOWN_SIZE 0x02000000		//下行dma buffer大小,ph0和ph1各0x01000000
+
+
 /* 
  * 以下是ioctl使用的宏
  */
-#define DOWN_MAGIC	(('d' + 'o' + 'w' + 'n') & 0xff)	//down_dev_ioctl魔数
-#define UP_MAGIC	(('u' + 'p') & 0xff)				//up_dev_ioctl魔数
-#define RESET_MAGIC	(('r' + 'e' + 's' + 'e' + 't') & 0xff)	//复位魔数
+ //type
+#define HAN_TYPE_MAGIC	(('h' + 'a' + 'n') & 0xff)
+
+//nr
+#define HAN_NR_NORMAL		0x1
+#define HAN_NR_RESET		0x2
+#define HAN_NR_PH_DMA		0x3
 
 
-/* 上行cmd */
-#define IOC_CMD_UP_NONE		_IOC(_IOC_NONE,UP_MAGIC,0,0)
-#define IOC_CMD_UP_READ		_IOC(_IOC_READ,UP_MAGIC,0,0)
-#define IOC_CMD_UP_WRITE	_IOC(_IOC_WRITE,UP_MAGIC,0,0)
-
-/* 下行cmd */
-#define IOC_CMD_DOWN_NONE	_IOC(_IOC_NONE,DOWN_MAGIC,0,0)
-#define IOC_CMD_DOWN_READ	_IOC(_IOC_READ,DOWN_MAGIC,0,0)
-#define IOC_CMD_DOWN_WRITE	_IOC(_IOC_WRITE,DOWN_MAGIC,0,0)
-
-/* 复位 */
-#define IOC_CMD_RESET	_IOC(_IOC_NONE,RESET_MAGIC,0,0)
+//cmd
+#define IOC_CMD_NONE	_IOC(_IOC_NONE,HAN_TYPE_MAGIC,HAN_NR_NORMAL,0)		//设置寄存器固定值或者读取寄存器但不传给用户
+#define IOC_CMD_READ	_IOC(_IOC_READ,HAN_TYPE_MAGIC,HAN_NR_NORMAL,0)		//读取寄存器值给用户
+#define IOC_CMD_WRITE	_IOC(_IOC_WRITE,HAN_TYPE_MAGIC,HAN_NR_NORMAL,0)		//设置用户传入的寄存器值
+#define IOC_CMD_RESET	_IOC(_IOC_NONE,HAN_TYPE_MAGIC,HAN_NR_RESET,0)		//设置复位寄存器使fpga复位
+#define IOC_CMD_PH_DMA	_IOC(_IOC_READ,HAN_TYPE_MAGIC,HAN_NR_PH_DMA,0)		//用户获取ph的dma buffer物理地址信息
 
 
 typedef struct user_info {
@@ -95,97 +99,6 @@ typedef struct user_info {
 } user_info_t;
 
 
-#if 0
-/* dma和prbs功能号 */
-#define NR_DOWN_PH0_DMA_ADDR	0x1		
-#define NR_DOWN_PH1_DMA_ADDR	0x2
-#define NR_DOWN_BLOCK_SIZE		0x3
-#define NR_DOWN_DMA_EN			0x4
-#define NR_DOWN_PH0_PRB_SEED	0x5
-#define NR_DOWN_PH1_PRB_SEED	0x6
-#define NR_UP_PH0_DMA_ADDR		0x7	
-#define NR_UP_PH1_DMA_ADDR		0x8
-#define NR_UP_BLOCK_SIZE		0x9
-#define NR_UP_DMA_EN			0xa
-#define NR_UP_PH0_PRB_SEED		0xb
-#define NR_UP_PH1_PRB_SEED		0xc
-/* 打印控制功能号 */
-#define NR_PRINT_OPEN			0x41
-#define NR_LOOP_TEST			0x42
-#define NR_DATA_TEST			0x43
-#define NR_MASTER				0x44
-#define NR_SYNC_SIM				0x45
-#define NR_BASE_IMAGE			0x46 
-/* 配置参数功能号 */
-#define NR_RASTER_SIM_PARAMS	0x81
-#define NR_PD_SIM_PARAMS		0x82
-#define NR_DIVISOR_PARAMS		0x83
-#define NR_JOB_PARAMS			0x84
-#define NR_PRINT_OFFSET			0x85
-#define NR_FIRE_DELAY			0x86
-#define NR_NOZZLE_SWITCH		0x87
-#define NR_SEARCH_LABEL_PARAMS	0x88
-/* 返回信息功能号 */
-#define NR_FPGA_TYPE			0x1
-#define NR_FPGA_DATE			0x2
-#define NR_BASE_IMAGE_TRANFER	0x3
-
-
-/* dma和prbs的cmd */
-#define DOWN_IOC_DOWN_PH0_DMA_ADDR	 _IOW(DOWN_MAGIC,NR_DOWN_PH0_DMA_ADDR,unsigned long)		
-#define DOWN_IOC_DOWN_PH1_DMA_ADDR	 _IOW(DOWN_MAGIC,NR_DOWN_PH1_DMA_ADDR,unsigned long)
-#define DOWN_IOC_DOWN_BLOCK_SIZE	 _IOW(DOWN_MAGIC,NR_DOWN_BLOCK_SIZE,unsigned long)
-#define DOWN_IOC_DOWN_DMA_EN		 _IOW(DOWN_MAGIC,NR_DOWN_DMA_EN,unsigned long)
-#define DOWN_IOC_DOWN_PH0_PRB_SEED	 _IOW(DOWN_MAGIC,NR_DOWN_PH0_PRB_SEED,unsigned long)
-#define DOWN_IOC_DOWN_PH1_PRB_SEED	 _IOW(DOWN_MAGIC,NR_DOWN_PH1_PRB_SEED,unsigned long)
-#define DOWN_IOC_UP_PH0_DMA_ADDR	 _IOW(DOWN_MAGIC,NR_UP_PH0_DMA_ADDR,unsigned long)		
-#define DOWN_IOC_UP_PH1_DMA_ADDR	 _IOW(DOWN_MAGIC,NR_UP_PH1_DMA_ADDR,unsigned long)
-#define DOWN_IOC_UP_BLOCK_SIZE		 _IOW(DOWN_MAGIC,NR_UP_BLOCK_SIZE,unsigned long)
-#define DOWN_IOC_UP_DMA_EN			 _IOW(DOWN_MAGIC,NR_UP_DMA_EN,unsigned long)
-#define DOWN_IOC_UP_PH0_PRB_SEED	 _IOW(DOWN_MAGIC,NR_UP_PH0_PRB_SEED,unsigned long)
-#define DOWN_IOC_UP_PH1_PRB_SEED	 _IOW(DOWN_MAGIC,NR_UP_PH1_PRB_SEED,unsigned long)
-/* 打印控制cmd */
-#define DOWN_IOC_PRINT_OPEN			 _IOW(DOWN_MAGIC,NR_PRINT_OPEN,unsigned long) 
-#define DOWN_IOC_LOOP_TEST			 _IOW(DOWN_MAGIC,NR_LOOP_TEST,unsigned long)
-#define DOWN_IOC_DATA_TEST			 _IOW(DOWN_MAGIC,NR_DATA_TEST,unsigned long)
-#define DOWN_IOC_MASTER				 _IOW(DOWN_MAGIC,NR_MASTER,unsigned long) 
-#define DOWN_IOC_SYNC_SIM			 _IOW(DOWN_MAGIC,NR_SYNC_SIM,unsigned long)
-#define DOWN_IOC_BASE_IMAGE			 _IOW(DOWN_MAGIC,NR_BASE_IMAGE,unsigned long)
-/* 配置参数cmd */
-#define DOWN_IOC_RASTER_SIM_PARAMS	 _IOW(DOWN_MAGIC,NR_RASTER_SIM_PARAMS,unsigned long)
-#define DOWN_IOC_PD_SIM_PARAMS		 _IOW(DOWN_MAGIC,NR_PD_SIM_PARAMS,unsigned long)
-#define DOWN_IOC_DIVISOR_PARAMS		 _IOW(DOWN_MAGIC,NR_DIVISOR_PARAMS,unsigned long)
-#define DOWN_IOC_JOB_PARAMS			 _IOW(DOWN_MAGIC,NR_JOB_PARAMS,unsigned long)
-#define DOWN_IOC_PRINT_OFFSET		 _IOW(DOWN_MAGIC,NR_PRINT_OFFSET,unsigned long)
-#define DOWN_IOC_FIRE_DELAY			 _IOW(DOWN_MAGIC,NR_FIRE_DELAY,unsigned long)
-#define DOWN_IOC_NOZZLE_SWITCH		 _IOW(DOWN_MAGIC,NR_NOZZLE_SWITCH,unsigned long)
-#define DOWN_IOC_SEARCH_LABEL_PARAMS _IOW(DOWN_MAGIC,NR_SEARCH_LABEL_PARAMS,unsigned long)
-/* 返回信息cmd */
-#define UP_IOC_FPGA_TYPE			 _IOR(UP_MAGIC,NR_FPGA_TYPE,unsigned long)
-#define UP_IOC_FPGA_DATE			 _IOR(UP_MAGIC,NR_FPGA_DATE,unsigned long)
-#define UP_IOC_BASE_IMAGE_TRANFER	 _IOR(UP_MAGIC,NR_BASE_IMAGE_TRANFER,unsigned long)
-
-
-/* 功能对应的寄存器数量,由xx_dev_ioctl根据cmd判断使用,只列出大于1的,其他的都为1 */
-#define REGS_NUM_RASTER_SIM_PARAMS		2
-#define REGS_NUM_PD_SIM_PARAMS			5
-#define REGS_NUM_DIVISOR_PARAMS 		3
-#define REGS_NUM_JOB_PARAMS				5
-#define REGS_NUM_PRINT_OFFSET			9
-#define REGS_NUM_FIRE_DELAY				4
-#define REGS_NUM_NOZZLE_SWITCH			6
-#define REGS_NUM_SEARCH_LABEL_PARAMS	5
-
-/* 功能对应的读出或写入的字节数,未列出的都为sizeof(unsigned long) */
-#define BYTES_NUM_RASTER_SIM_PARAMS		(REGS_NUM_RASTER_SIM_PARAMS*sizeof(unsigned long))
-#define BYTES_NUM_PD_SIM_PARAMS			(REGS_NUM_PD_SIM_PARAMS*sizeof(unsigned long))
-#define BYTES_NUM_DIVISOR_PARAMS 		(REGS_NUM_DIVISOR_PARAMS*sizeof(unsigned long))
-#define BYTES_NUM_JOB_PARAMS			(REGS_NUM_JOB_PARAMS*sizeof(unsigned long))
-#define BYTES_NUM_PRINT_OFFSET			(REGS_NUM_PRINT_OFFSET*sizeof(unsigned long))
-#define BYTES_NUM_FIRE_DELAY			(REGS_NUM_FIRE_DELAY*sizeof(unsigned long))
-#define BYTES_NUM_NOZZLE_SWITCH			(REGS_NUM_NOZZLE_SWITCH*sizeof(unsigned long))
-#define BYTES_NUM_SEARCH_LABEL_PARAMS	(REGS_NUM_SEARCH_LABEL_PARAMS*sizeof(unsigned long))
-#endif
 
 #endif
 

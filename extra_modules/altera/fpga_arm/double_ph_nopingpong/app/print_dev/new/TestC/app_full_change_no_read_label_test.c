@@ -6,7 +6,10 @@
 
 
 #include "print_config_control.h"
-#include "utils.h"
+
+
+/* 测试数据量 */
+#define TEST_TIMES 	(10*1024)
 
 
 #define DEFAULT_REG_VAL 0
@@ -23,9 +26,11 @@
 /* 打印参数 */
 static unsigned long raster_sim_params_regs[RASTER_SIM_PARAMS_REGS_NUM] = {1, 55};
 static unsigned long pd_sim_params_regs[PD_SIM_PARAMS_REGS_NUM] = {DEFAULT_REG_VAL};
-static unsigned long divisor_params_regs[DIVISOR_PARAMS_REGS_NUM] = {3, 1, 8};
-static unsigned long job_params_regs[JOB_PARAMS_REGS_NUM] = {[0] = 0x0, [4] = 0x400000};
-static unsigned long print_offset_regs[PRINT_OFFSET_REGS_NUM] = {DEFAULT_REG_VAL};
+static unsigned long divisor_params_regs[DIVISOR_PARAMS_REGS_NUM] = {24, 1, 8};
+static unsigned long job_params_regs[JOB_PARAMS_REGS_NUM] = {[0] = 0x1, [4] = 0x400000};
+static unsigned long print_offset_regs[PRINT_OFFSET_REGS_NUM] = {1200,(20<<16|0),(84<<16|64),(114<<16|94),(178<<16|158),
+														  (206<<16|186),(270<<16|250),(300<<16|280),(364<<16|344)};
+
 static unsigned long fire_delay_regs[FIRE_DELAY_REGS_NUM] = {DEFAULT_REG_VAL};
 static unsigned long nozzle_switch_regs[NOZZLE_SWITCH_REGS_NUM] = {DEFAULT_REG_VAL};
 static unsigned long search_label_params[SEARCH_LABEL_PARAMS_NUM] = {DEFAULT_REG_VAL};
@@ -49,22 +54,6 @@ int main(void)
 	unsigned long ph0_seed = 66;
 	unsigned long ph1_seed = 99;
 
-	/* ioctl arg测试 */
-	unsigned long o_test_data_en = 0x1;
-	arg_info_t test_arg;
-	test_arg.offset = O_TEST_DATA_EN;
-	test_arg.size = ONE_REG_SIZE;
-	test_arg.addr = (void*)&o_test_data_en;
-
-	/* ioctl 复位测试 */
-	arg_info_t reset_arg;
-	reset_arg.offset = 0;
-	reset_arg.size = 0;
-	reset_arg.addr = 0;		
-
-	/* 设置打印管理结构体默认值 */
-	init_print_info(&g_print_info);
-
 	/* 构造发送给fpga的数据 */
 	ret = build_fpga_data(ph0_data, ph1_data, block_size, block_cnt);
 	if (ret == -1) {
@@ -77,11 +66,11 @@ int main(void)
 		return -1;
 	}	
 
-	/* 初始化 */
-	g_print_info.print_init(&g_print_info);
-
-	/* ioctl 复位测试 */
-	//ioctl(g_print_info.down_fd, IOC_CMD_RESET, &reset_arg);
+	/* 初始化
+	 * 先通过init_print_info设置g_print_info的函数和数据成员的默认值
+     * 然后在通过设置好的print_init成员函数打开设备文件,设置好g_print_info的数据成员
+	 */
+	Init_print_info(&g_print_info);
 
 	/* step 0 */
 	g_print_info.config_master(&g_print_info);
@@ -102,8 +91,7 @@ int main(void)
 	g_print_info.config_search_label_params(&g_print_info, search_label_params);
 
 	/* step 4 */
-	//g_print_info.test_data_enable(&g_print_info);
-	ioctl(g_print_info.down_fd, IOC_CMD_DOWN_WRITE, &test_arg);
+	g_print_info.test_data_enable(&g_print_info);
 
 	/* step 5 */
 	memset(&read_info,0,sizeof(read_info));
@@ -142,7 +130,7 @@ int main(void)
 	 * 收到硬件中断bit[4]表示打印正常结束/收到硬件中断bit[5]表示打印异常停止.
 	 * 打印输出寄存器内容,测试结束.
 	 */
-	for (times = 0; times < 16 * 1024; times++) {
+	for (times = 1; times < TEST_TIMES; times++) {
 		ret = write(g_print_info.down_fd, ph0_data, dma_blks_one_time * block_size);
 		if (ret != (int)(dma_blks_one_time * block_size)) {
 			printf("write error\n");
@@ -162,20 +150,20 @@ int main(void)
 	/* 等待正常结束打印或者异常结束打印 */
 	ret = read(g_print_info.down_fd, &read_info, sizeof(read_info));
 finish_print:	
-	if (ret == 1) 
+	if (ret == HAN_E_PT_FIN) 
 		printf("down read normal stop\n");
-	else if (ret ==2) 
+	else if (ret == HAN_E_PT_EXPT) 
 		printf("down read accident stop\n");
 	else 
-		printf("down read wrong\n");
+		printf("down read wrong,ret value %d\n", ret);
 		
 
 	/* step 7 */
-	g_print_info.print_disable(&g_print_info);
+	//g_print_info.print_disable(&g_print_info);
 
 	/* 释放资源 */
 	free(ph0_data);
-	g_print_info.print_close(&g_print_info);
+	Close_print_info(&g_print_info);
 	
 	return 0;
 }
