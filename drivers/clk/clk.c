@@ -94,6 +94,7 @@ struct clk_core {
 #define CREATE_TRACE_POINTS
 #include <trace/events/clk.h>
 
+/* consumer */
 struct clk {
 	struct clk_core	*core;
 	struct device *dev;

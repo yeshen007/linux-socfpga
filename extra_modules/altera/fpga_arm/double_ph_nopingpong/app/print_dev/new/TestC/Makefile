@@ -25,7 +25,14 @@ RM := cs-rm -rf
 endif
 
 CFILES := print_config_control.c utils.c
-CFILES += app_base_change_no_read_label_test.c 
+#CFILES += app_full_change_no_read_label_test.c 
+#CFILES += app_full_change_read_label_test.c 
+#CFILES += app_full_change_read_label_loop_test.c
+#CFILES += app_base_change_no_read_label_test.c
+#CFILES += app_base_change_read_label_test.c
+CFILES += app_soft_stop_test.c
+#CFILES += app_nonblock_test.c
+#CFILES += app_timeout_test.c
 
 CPPFILES :=	
 

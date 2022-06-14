@@ -5,6 +5,8 @@
 
 #include "socfpga_cyclone5.dtsi"
 #include <dt-bindings/net/ti-dp83869.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
 / {
 	model = "Altera SOCFPGA Cyclone V SoC Development Kit";
 	compatible = "altr,socfpga-cyclone5-socdk", "altr,socfpga-cyclone5", "altr,socfpga";
@@ -66,42 +68,42 @@
 		};		
 	};	
 
-/*
-	f2sm_driver_subsys_0 {
-		compatible = "f2sm_rdev,driver-1.0";
-		memory-region = <0x66 0x67>;
-		interrupt-parent = <0x2>;
-		interrupts = <0x0 0x28 0x1>;
-		interrupt-names = "irq0-0";
-	};
-
-	f2sm_driver_subsys_1 {
-		compatible = "f2sm_wdev,driver-1.0";
-		memory-region = <0x68 0x69>;
-		interrupt-parent = <0x2>;
-		interrupts = <0x0 0x29 0x1 >;
-		interrupt-names = "irq0-1";
-	};	
-
-	f2sm_driver_subsys_2 {
-		compatible = "fddr_dev,driver-1.0";
-		interrupt-parent = <0x2>;
-		interrupts = <0x0 0x2b 0x1 0x0 0x2a 0x1>;
-		interrupt-names = "irq0-3", "irq0-2";
-	};
-*/
-
 	print_driver_subsys {
 		compatible = "print_dev,driver-1.0";
 		memory-region = <0x66 0x67 0x68 0x69>;
-		interrupt-parent = <0x2>;
-		interrupts = <0x0 0x28 0x1 0x0 0x29 0x1 0x0 0x2c 0x1 0x0 0x2d 0x1>;
-		interrupt-names = "irq0-0", "irq0-1", "irq0-4", "irq0-5";
+		interrupt-parent = <&intc>;
+		interrupts = <0x0 0x28 IRQ_TYPE_EDGE_RISING>,
+					 <0x0 0x29 IRQ_TYPE_EDGE_RISING>,
+					 <0x0 0x2c IRQ_TYPE_EDGE_RISING>,
+					 <0x0 0x2d IRQ_TYPE_EDGE_RISING>;
+		interrupt-names = "irq0-0", 
+						  "irq0-1", 
+						  "irq0-4", 
+						  "irq0-5";
 		resets = <&rst S2F_RESET>;
 	};
 
+	/* altera uart soft ip */
+	ph0_uart@ff200800 {
+		compatible = "altr,uart-1.0";	//altera-uart.c
+		reg = <0xff200800 0x20>;
+		interrupt-parent = <&intc>;
+		interrupts = <0x0 0x4a IRQ_TYPE_LEVEL_HIGH>;	//fpga-irq34,发送和接收公用
+		interrupt-names = "altera_uart0";	
+		clock-frequency = <50000000>;
+	};	
+	ph1_uart@ff200820 {
+		compatible = "altr,uart-1.0";
+		reg = <0xff200820 0x20>;
+		interrupt-parent = <&intc>;
+		interrupts = <0x0 0x4b IRQ_TYPE_LEVEL_HIGH>;	//fpga-irq35,发送和接收公用
+		interrupt-names = "altera_uart1";
+		clock-frequency = <50000000>;
+	};	
+	
+
 	leds {
-		compatible = "gpio-leds";
+		compatible = "gpio-leds";	//leds-gpio.c
 		led0 {	
 			label = "FPGA_CFG";
 			gpios = <&portb 24 1>;
@@ -113,7 +115,7 @@
 	};	
 
 	gpios {
-        compatible = "altr,pio-1.0";
+        compatible = "altr,pio-1.0";	//gpio-altera.c
         gpio35 {
             label = "LOCK_CHIP_EN";
             gpios = <&portb 6 1>;
@@ -174,11 +176,11 @@
     phy-mode = "rgmii";
 	snps,phy-addr = <10>;
 	mdio0 {
-        compatible = "snps,dwmac-mdio";
+        compatible = "snps,dwmac-mdio";		//
         #address-cells = <1>;
         #size-cells = <0>;
         phy0: ethernet-phy@0 {
-        	compatible = "ethernet-phy-id2000.a0f1";
+        	compatible = "ethernet-phy-id2000.a0f1";	//
 			ti,op-mode = <DP83869_RGMII_1000_BASE>;
 			rx-fifo-depth = <DP83869_PHYCR_FIFO_DEPTH_4_B_NIB>;
 			reg = <10>;

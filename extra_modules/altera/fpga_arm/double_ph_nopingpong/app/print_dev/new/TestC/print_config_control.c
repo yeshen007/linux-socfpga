@@ -2,11 +2,9 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/mman.h>
 #include <errno.h>
 #include <string.h>
 #include <sys/ioctl.h>
-
 
 #include "print_config_control.h"
 
@@ -16,20 +14,20 @@ static void _print_init(struct print_info *print_info)
 	unsigned long dma_info[4];
 	arg_info_t arg_info;	
 
-	print_info->up_fd = open(UP_DEV, O_RDWR);
+	print_info->up_fd = Open(UP_DEV, O_RDWR);
     if (print_info->up_fd < 0) {
-        fprintf(stderr, "open: %s\n", strerror(errno));
+        fprintf(stderr, "Open: %s\n", strerror(errno));
         exit(-1);
-    }	
+    }
 	
-	print_info->down_fd = open(DOWN_DEV, O_RDWR);
+	print_info->down_fd = Open(DOWN_DEV, O_RDWR);
     if (print_info->down_fd < 0) {
-        fprintf(stderr, "open: %s\n", strerror(errno));
-		close(print_info->up_fd);
+        fprintf(stderr, "Open: %s\n", strerror(errno));
+		Close(print_info->up_fd);
         exit(-1);
     }	
 
-	arg_info.offset = NO_NEED_OFFSET;
+	arg_info.offset = NO_NEED_ARG_OFFSET;
 	arg_info.size = 4*ONE_REG_SIZE;
 	arg_info.addr = (void*)&dma_info;
 	Ioctl(print_info->down_fd, IOC_CMD_PH_DMA, &arg_info);
@@ -48,13 +46,58 @@ static void _print_close(struct print_info *print_info)
 	for (i = 0; i < F2SM_MEM_NUMS; i++)
 		memset(&print_info->mem_info[i], 0, sizeof(f2sm_mem_info_t));
 	
-	close(print_info->down_fd);
+	Close(print_info->down_fd);
 	print_info->down_fd = -1;
 	
-	close(print_info->up_fd);
+	Close(print_info->up_fd);
 	print_info->up_fd = -1;	
 }
 
+static void _print_stop(struct print_info *print_info)
+{
+	Ioctl(print_info->down_fd, IOC_CMD_STOP, NULL);	
+}
+
+static void _print_reset(struct print_info *print_info)
+{
+	Ioctl(print_info->down_fd, IOC_CMD_RESET, NULL);	
+}
+
+static void _print_nonblock_up(struct print_info *print_info)
+{
+	int flags;
+
+	flags = fcntl(print_info->up_fd, F_GETFL, 0);
+	if (flags < 0) {
+		fprintf(stderr, "Nonblock up get flags faild: %s\n", strerror(errno));
+		exit(-1);
+	}
+
+	flags |= O_NONBLOCK;
+
+	if (fcntl(print_info->up_fd, F_SETFL, flags) < 0) {
+		fprintf(stderr, "Nonblock up set flags faild: %s\n", strerror(errno));
+		exit(-1);
+	}		
+}
+
+static void _print_nonblock_down(struct print_info *print_info)
+{
+	int flags;
+
+	flags = fcntl(print_info->down_fd, F_GETFL, 0);
+	if (flags < 0) {
+		fprintf(stderr, "Nonblock down get flags faild: %s\n", strerror(errno));
+		exit(-1);
+	}
+
+	flags |= O_NONBLOCK;
+
+	if (fcntl(print_info->down_fd, F_SETFL, flags) < 0) {
+		fprintf(stderr, "Nonblock down set flags faild: %s\n", strerror(errno));
+		exit(-1);
+	}		
+}
 
 
 static void _starttransfer_down_seed(struct print_info *print_info, unsigned long seed1, 
@@ -93,10 +136,17 @@ static void _starttransfer_down_seed(struct print_info *print_info, unsigned lon
 	arg_info.addr = (void*)&reg_val;	
 	Ioctl(print_info->down_fd, IOC_CMD_WRITE, &arg_info);
 
+	reg_val = 0x1;
 	arg_info.offset = PRINTER_DATA_MASTER_READ_CONTROL_READ_EN;
-	arg_info.size = NO_NEED_ARG_SIZE;
-	arg_info.addr = NO_NEED_ARG_ADDR;	
-	Ioctl(print_info->down_fd, IOC_CMD_NONE, &arg_info);	
+	arg_info.size = ONE_REG_SIZE;
+	arg_info.addr = (void*)&reg_val;	
+	Ioctl(print_info->down_fd, IOC_CMD_WRITE, &arg_info);	
+
+	reg_val = 0x0;
+	arg_info.offset = PRINTER_DATA_MASTER_READ_CONTROL_READ_EN;
+	arg_info.size = ONE_REG_SIZE;
+	arg_info.addr = (void*)&reg_val;	
+	Ioctl(print_info->down_fd, IOC_CMD_WRITE, &arg_info);	
 }
 
 static void _starttransfer_down(struct print_info *print_info, unsigned int blk_count)   
@@ -122,10 +172,17 @@ static void _starttransfer_down(struct print_info *print_info, unsigned int blk_
 	arg_info.addr = (void*)&reg_val;	
 	Ioctl(print_info->down_fd, IOC_CMD_WRITE, &arg_info);
 
+	reg_val = 0x1;
 	arg_info.offset = PRINTER_DATA_MASTER_READ_CONTROL_READ_EN;
-	arg_info.size = NO_NEED_ARG_SIZE;
-	arg_info.addr = NO_NEED_ARG_ADDR;	
-	Ioctl(print_info->down_fd, IOC_CMD_NONE, &arg_info);	
+	arg_info.size = ONE_REG_SIZE;
+	arg_info.addr = (void*)&reg_val;	
+	Ioctl(print_info->down_fd, IOC_CMD_WRITE, &arg_info);	
+
+	reg_val = 0x0;
+	arg_info.offset = PRINTER_DATA_MASTER_READ_CONTROL_READ_EN;
+	arg_info.size = ONE_REG_SIZE;
+	arg_info.addr = (void*)&reg_val;	
+	Ioctl(print_info->down_fd, IOC_CMD_WRITE, &arg_info);	
 }
 
 static void _starttransfer_up(struct print_info *print_info, unsigned int blk_count)
@@ -151,10 +208,17 @@ static void _starttransfer_up(struct print_info *print_info, unsigned int blk_co
 	arg_info.addr = (void*)&reg_val;	
 	Ioctl(print_info->down_fd, IOC_CMD_WRITE, &arg_info);
 
+	reg_val = 0x1;
 	arg_info.offset = PRINTER_DATA_MASTER_WRITE_CONTROL_WRITE_EN;
-	arg_info.size = NO_NEED_ARG_SIZE;
-	arg_info.addr = NO_NEED_ARG_ADDR;
-	Ioctl(print_info->down_fd, IOC_CMD_NONE, &arg_info);
+	arg_info.size = ONE_REG_SIZE;
+	arg_info.addr = (void*)&reg_val;
+	Ioctl(print_info->down_fd, IOC_CMD_WRITE, &arg_info);
+
+	reg_val = 0x0;
+	arg_info.offset = PRINTER_DATA_MASTER_WRITE_CONTROL_WRITE_EN;
+	arg_info.size = ONE_REG_SIZE;
+	arg_info.addr = (void*)&reg_val;
+	Ioctl(print_info->down_fd, IOC_CMD_WRITE, &arg_info);
 
 }
 
@@ -427,17 +491,15 @@ static void _config_search_label_params(struct print_info *print_info, unsigned 
 }
 
 
-void init_print_info(struct print_info *print_info)
-{	
-	int i;
-
-	print_info->up_fd = -1;
-	print_info->down_fd = -1;
-	for (i = 0; i < F2SM_MEM_NUMS; i++)
-		memset(&print_info->mem_info[i], 0, sizeof(f2sm_mem_info_t));
-	
+static void _init_print_info(struct print_info *print_info)
+{		
 	print_info->print_init = _print_init;
 	print_info->print_close = _print_close;
+	print_info->print_stop = _print_stop;
+	print_info->print_reset = _print_reset;
+	print_info->print_nonblock_up = _print_nonblock_up;
+	print_info->print_nonblock_down = _print_nonblock_down;
+	
 	print_info->starttransfer_down_seed = _starttransfer_down_seed;
 	print_info->starttransfer_down = _starttransfer_down;
 	print_info->starttransfer_up = _starttransfer_up;
@@ -452,6 +514,7 @@ void init_print_info(struct print_info *print_info)
 	print_info->base_image_enable = _base_image_enable;
 	print_info->base_image_disable = _base_image_disable;
 	print_info->base_image_tranfer_complete = _base_image_tranfer_complete;
+	
 	print_info->config_raster_sim_params = _config_raster_sim_params;
 	print_info->config_pd_sim_params = _config_pd_sim_params;
 	print_info->config_divisor_params = _config_divisor_params;
@@ -463,10 +526,15 @@ void init_print_info(struct print_info *print_info)
 }
 
 
-void close_print_info(struct print_info *print_info)
+static void _close_print_info(struct print_info *print_info)
 {
 	print_info->print_init = NULL;
 	print_info->print_close = NULL;
+	print_info->print_stop = NULL;
+	print_info->print_reset = NULL;
+	print_info->print_nonblock_up = NULL;
+	print_info->print_nonblock_down = NULL;	
+	
 	print_info->starttransfer_down_seed = NULL;
 	print_info->starttransfer_down = NULL;
 	print_info->starttransfer_up = NULL;
@@ -481,6 +549,7 @@ void close_print_info(struct print_info *print_info)
 	print_info->base_image_enable = NULL;
 	print_info->base_image_disable = NULL;
 	print_info->base_image_tranfer_complete = NULL;
+	
 	print_info->config_raster_sim_params = NULL;
 	print_info->config_pd_sim_params = NULL;
 	print_info->config_divisor_params = NULL;
@@ -492,16 +561,16 @@ void close_print_info(struct print_info *print_info)
 }
 
 
-void Init_print_info(struct print_info *print_info)
+void init_print_info(struct print_info *print_info)
 {
-	init_print_info(print_info);
+	_init_print_info(print_info);
 	print_info->print_init(print_info);
 }
 
 
-void Close_print_info(struct print_info *print_info)
+void close_print_info(struct print_info *print_info)
 {
 	print_info->print_close(print_info);
-	close_print_info(print_info);
+	_close_print_info(print_info);
 }
 

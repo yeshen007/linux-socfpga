@@ -2457,7 +2457,7 @@ int device_add(struct device *dev)
 		blocking_notifier_call_chain(&dev->bus->p->bus_notifier,
 					     BUS_NOTIFY_ADD_DEVICE, dev);
 
-	kobject_uevent(&dev->kobj, KOBJ_ADD);
+	kobject_uevent(&dev->kobj, KOBJ_ADD);		//通知udev创建设备节点
 
 	if (dev->fwnode && !dev->fwnode->dev)
 		dev->fwnode->dev = dev;

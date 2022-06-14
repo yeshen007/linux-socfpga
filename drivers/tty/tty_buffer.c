@@ -410,7 +410,7 @@ void tty_schedule_flip(struct tty_port *port)
 	 * flush_to_ldisc() sees buffer data.
 	 */
 	smp_store_release(&buf->tail->commit, buf->tail->used);
-	queue_work(system_unbound_wq, &buf->work);
+	queue_work(system_unbound_wq, &buf->work); //flush_to_ldisc
 }
 EXPORT_SYMBOL(tty_schedule_flip);
 
@@ -530,7 +530,7 @@ static void flush_to_ldisc(struct work_struct *work)
 			continue;
 		}
 
-		count = receive_buf(port, head, count);
+		count = receive_buf(port, head, count);	//唤醒
 		if (!count)
 			break;
 		head->read += count;

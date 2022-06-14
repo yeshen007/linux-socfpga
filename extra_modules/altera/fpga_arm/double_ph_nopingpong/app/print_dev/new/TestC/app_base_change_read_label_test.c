@@ -25,10 +25,11 @@
 #define NOZZLE_SWITCH_REGS_NUM 6
 #define SEARCH_LABEL_PARAMS_NUM 5
 
+/* 数据量 */
+#define FIRE_NUM 21824
 
 /* 打印核心管理信息 */
 static print_info_t g_print_info;
-
 
 
 static int g_down_fd;
@@ -42,7 +43,6 @@ static u8 *g_ph0_base;
 static u8 *g_ph1_base;
 static u8 *g_ph0_change; 
 static u8 *g_ph1_change;
-
 
 
 static u8 linenum[16] = {15, 4, 9, 2, 12, 7, 10, 1, 14, 5, 8, 3, 13, 6, 11, 0};
@@ -113,12 +113,12 @@ void base_call(void)
 	unsigned long long down_blks_one_time = 16;
 
 	/* 基图数据量,一般不变,变的是change_total */
-	unsigned long long base_total = TEST_BLOCK_SIZE * TEST_BLOCK_CNT;
+	unsigned long long base_total = TEST_BLOCK_SIZE * FIRE_NUM / 4;	
 
 
 	//发送第一块到最后一块
 	for (down_i = 0; down_i < base_total / (down_blks_one_time * down_blk_size); down_i++) {
-		ret = read(g_down_fd, &read_info, sizeof(read_info));
+		ret = Read(g_down_fd, &read_info, sizeof(read_info));
 		if ((u32)ret != sizeof(read_info)) {	//为了和up保持代码一致，硬件不出问题不会在下行期间来结束打印中断
 			if (ret == HAN_E_PT_FIN) {
 				fprintf(stderr, "Error at line %d, file %s\n", __LINE__, __FILE__);
@@ -136,7 +136,7 @@ void base_call(void)
 			return ;
 		}
 
-		ret = write(g_down_fd, g_ph0_base, down_blk_size * down_blks_one_time);
+		ret = Write(g_down_fd, g_ph0_base, down_blk_size * down_blks_one_time);
 		if ((u32)ret != down_blk_size * down_blks_one_time) {
 			fprintf(stderr, "Error at line %d, file %s\n", __LINE__, __FILE__);
 			return ;
@@ -151,14 +151,14 @@ void base_call(void)
 
 /* 打印参数 */
 unsigned long raster_sim_params_regs[RASTER_SIM_PARAMS_REGS_NUM] = {1, 55};
-unsigned long pd_sim_params_regs[PD_SIM_PARAMS_REGS_NUM] = {0x1, DEFAULT_REG_VAL, 1, 100, 4096};
+unsigned long pd_sim_params_regs[PD_SIM_PARAMS_REGS_NUM] = {0x1, DEFAULT_REG_VAL, 1, 100, FIRE_NUM};
 unsigned long divisor_params_regs[DIVISOR_PARAMS_REGS_NUM] = {24, 1, 8};
-unsigned long job_params_regs[JOB_PARAMS_REGS_NUM] = {[0] = 0x7, [3] = 4096, [4] = 4096*8};
+unsigned long job_params_regs[JOB_PARAMS_REGS_NUM] = {[0] = 0x7, [3] = FIRE_NUM, [4] = FIRE_NUM*8};
 unsigned long print_offset_regs[PRINT_OFFSET_REGS_NUM] = {1200,(20<<16|0),(84<<16|64),(114<<16|94),(178<<16|158),
 														  (206<<16|186),(270<<16|250),(300<<16|280),(364<<16|344)};
 unsigned long fire_delay_regs[FIRE_DELAY_REGS_NUM] = {DEFAULT_REG_VAL};
 unsigned long nozzle_switch_regs[NOZZLE_SWITCH_REGS_NUM] = {DEFAULT_REG_VAL};
-unsigned long search_label_params[SEARCH_LABEL_PARAMS_NUM] = {100,1,4096,1,1};
+unsigned long search_label_params[SEARCH_LABEL_PARAMS_NUM] = {100,1,FIRE_NUM,1,1};
 
 
 int main(void)
@@ -171,7 +171,7 @@ int main(void)
 	unsigned long long times;
 
 	/* 测量数据量 */
-	unsigned long long change_total = TEST_BLOCK_SIZE * TEST_BLOCK_CNT * 64 * 2;
+	unsigned long long change_total = (TEST_BLOCK_SIZE * FIRE_NUM / 4) * 10;
 	
 
 	g_ph0_base = (u8 *)malloc(2 * PH1_USERBUF_OFFSET);
@@ -192,7 +192,7 @@ int main(void)
 	}	
 
 	/*  */
-	Init_print_info(&g_print_info);
+	init_print_info(&g_print_info);
 
 	
 	g_down_fd = g_print_info.down_fd;	
@@ -238,21 +238,18 @@ int main(void)
 
 	g_print_info.base_image_tranfer_complete(&g_print_info);
 
-
 	g_print_info.base_image_disable(&g_print_info);
 
-	
 	 
 	/* 启动DMA，发送第1块缓存数据。第一次收到DMA中断信号后，暂停发送数据 */
 	memset(&read_info,0,sizeof(read_info));
-	ret = read(g_down_fd, &read_info, sizeof(read_info));
-	printf("first read must not wait\n");
+	ret = Read(g_down_fd, &read_info, sizeof(read_info));
 	if (ret != sizeof(read_info)) {
-		printf("first read error\n");
+		printf("first read in change transfer error\n");
 		return -1;
 	}
 	
-	ret = write(g_down_fd, g_ph0_change, dma_blks_one_time * down_blk_size);
+	ret = Write(g_down_fd, g_ph0_change, dma_blks_one_time * down_blk_size);
 	if (ret != (int)(dma_blks_one_time * down_blk_size)) {
 		printf("first write error\n");
 		return -1;		
@@ -261,7 +258,7 @@ int main(void)
 	g_print_info.starttransfer_down(&g_print_info, dma_blks_one_time);
 	
 	memset(&read_info,0,sizeof(read_info));
-	ret = read(g_down_fd, &read_info, sizeof(read_info));
+	ret = Read(g_down_fd, &read_info, sizeof(read_info));
 	if (ret != sizeof(read_info)) {
 		printf("second read error\n");
 		return -1;
@@ -288,7 +285,7 @@ int main(void)
      * 打印输出寄存器内容,测试结束.
 	 */
 	for (times = 1; times < change_total / (dma_blks_one_time * down_blk_size); times++) {
-		ret = write(g_down_fd, g_ph0_change, dma_blks_one_time * down_blk_size);
+		ret = Write(g_down_fd, g_ph0_change, dma_blks_one_time * down_blk_size);
 		if (ret != (int)(dma_blks_one_time * down_blk_size)) {
 			printf("write error\n");
 			return -1;		
@@ -297,23 +294,20 @@ int main(void)
 		g_print_info.starttransfer_down(&g_print_info, dma_blks_one_time);
 		
 		memset(&read_info,0,sizeof(read_info));
-		ret = read(g_down_fd, &read_info, sizeof(read_info));
-		if (ret != sizeof(read_info)) {
-			printf("get print interrupt or read error\n");
+		ret = Read(g_down_fd, &read_info, sizeof(read_info));
+		if (ret != sizeof(read_info)) 
 			goto finish_print;
-		}	
-
+			
 	}
 
 	/* 等待正常结束打印或者异常结束打印 */
-	ret = read(g_down_fd, &read_info, sizeof(read_info));
+	ret = Read(g_down_fd, &read_info, sizeof(read_info));
 finish_print:	
 	if (ret == HAN_E_PT_FIN) 
-		printf("down read normal stop\n");
-	else if (ret == HAN_E_PT_EXPT) 
-		printf("down read accident stop\n");
+		printf("down read normal stop, ok\n");
 	else 
-		printf("down read wrong,ret value %d\n", ret);	
+		printf("down read stop bad at or before the last time\n");
+
 	 
 
 	/* 
@@ -322,11 +316,10 @@ finish_print:
 	//g_print_info.print_disable(&g_print_info);
 	
 
-	/* 释放数据 */
-	free(g_ph0_base);
+	/* 释放资源 */
+	close_print_info(&g_print_info);
 	free(g_ph0_change);
-
-	Close_print_info(&g_print_info);
+	free(g_ph0_base);
 
 	return ret;
 }

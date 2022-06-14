@@ -846,7 +846,6 @@ static void tty_update_time(struct timespec64 *time)
  *		Locks the line discipline internally while needed. Multiple
  *	read calls may be outstanding in parallel.
  */
-
 static ssize_t tty_read(struct file *file, char __user *buf, size_t count,
 			loff_t *ppos)
 {
@@ -866,7 +865,7 @@ static ssize_t tty_read(struct file *file, char __user *buf, size_t count,
 	if (!ld)
 		return hung_up_tty_read(file, buf, count, ppos);
 	if (ld->ops->read)
-		i = ld->ops->read(tty, file, buf, count);
+		i = ld->ops->read(tty, file, buf, count);	//n_tty_ops.read(n_tty_read)
 	else
 		i = -EIO;
 	tty_ldisc_deref(ld);
@@ -1022,7 +1021,6 @@ void tty_write_message(struct tty_struct *tty, char *msg)
  *	and are then processed in chunks to the device. The line discipline
  *	write method will not be invoked in parallel for each device.
  */
-
 static ssize_t tty_write(struct file *file, const char __user *buf,
 						size_t count, loff_t *ppos)
 {
@@ -1043,7 +1041,7 @@ static ssize_t tty_write(struct file *file, const char __user *buf,
 	if (!ld->ops->write)
 		ret = -EIO;
 	else
-		ret = do_tty_write(ld->ops->write, tty, file, buf, count);
+		ret = do_tty_write(ld->ops->write, tty, file, buf, count);	//n_tty_write
 	tty_ldisc_deref(ld);
 	return ret;
 }
@@ -1139,7 +1137,7 @@ static ssize_t tty_line_name(struct tty_driver *driver, int index, char *p)
 		return sprintf(p, "%s", driver->name);
 	else
 		return sprintf(p, "%s%d", driver->name,
-			       index + driver->name_base);
+			       index + driver->name_base);		//driver->name_base没有设置是0
 }
 
 /**
@@ -1331,14 +1329,14 @@ struct tty_struct *tty_init_dev(struct tty_driver *driver, int idx)
 	if (!try_module_get(driver->owner))
 		return ERR_PTR(-ENODEV);
 
-	tty = alloc_tty_struct(driver, idx);
+	tty = alloc_tty_struct(driver, idx);	//
 	if (!tty) {
 		retval = -ENOMEM;
 		goto err_module_put;
 	}
 
 	tty_lock(tty);
-	retval = tty_driver_install_tty(driver, tty);
+	retval = tty_driver_install_tty(driver, tty);		//
 	if (retval < 0)
 		goto err_free_tty;
 
@@ -1852,7 +1850,7 @@ static struct tty_driver *tty_lookup_driver(dev_t device, struct file *filp,
 		break;
 	}
 #endif
-	case MKDEV(TTYAUX_MAJOR, 1): {
+	case MKDEV(TTYAUX_MAJOR, 1): {	// /dev/console
 		struct tty_driver *console_driver = console_device(index);
 		if (console_driver) {
 			driver = tty_driver_kref_get(console_driver);
@@ -1867,7 +1865,7 @@ static struct tty_driver *tty_lookup_driver(dev_t device, struct file *filp,
 		return ERR_PTR(-ENODEV);
 	}
 	default:
-		driver = get_tty_driver(device, index);
+		driver = get_tty_driver(device, index);		//
 		if (!driver)
 			return ERR_PTR(-ENODEV);
 		break;
@@ -1949,14 +1947,14 @@ static struct tty_struct *tty_open_by_driver(dev_t device,
 	int retval;
 
 	mutex_lock(&tty_mutex);
-	driver = tty_lookup_driver(device, filp, &index);
+	driver = tty_lookup_driver(device, filp, &index);	//
 	if (IS_ERR(driver)) {
 		mutex_unlock(&tty_mutex);
 		return ERR_CAST(driver);
 	}
 
 	/* check whether we're reopening an existing tty */
-	tty = tty_driver_lookup_tty(driver, filp, index);
+	tty = tty_driver_lookup_tty(driver, filp, index);	//
 	if (IS_ERR(tty)) {
 		mutex_unlock(&tty_mutex);
 		goto out;
@@ -1984,7 +1982,7 @@ static struct tty_struct *tty_open_by_driver(dev_t device,
 			tty = ERR_PTR(retval);
 		}
 	} else { /* Returns with the tty_lock held for now */
-		tty = tty_init_dev(driver, index);
+		tty = tty_init_dev(driver, index);		//
 		mutex_unlock(&tty_mutex);
 	}
 out:
@@ -2032,7 +2030,7 @@ retry_open:
 
 	tty = tty_open_current_tty(device, filp);
 	if (!tty)
-		tty = tty_open_by_driver(device, filp);
+		tty = tty_open_by_driver(device, filp);		//
 
 	if (IS_ERR(tty)) {
 		tty_free_file(filp);
@@ -2049,7 +2047,7 @@ retry_open:
 	tty_debug_hangup(tty, "opening (count=%d)\n", tty->count);
 
 	if (tty->ops->open)
-		retval = tty->ops->open(tty, filp);
+		retval = tty->ops->open(tty, filp);	//uart_open
 	else
 		retval = -ENODEV;
 	filp->f_flags = saved_flags;
@@ -3007,7 +3005,7 @@ struct tty_struct *alloc_tty_struct(struct tty_driver *driver, int idx)
 	INIT_WORK(&tty->SAK_work, do_SAK_work);
 
 	tty->driver = driver;
-	tty->ops = driver->ops;
+	tty->ops = driver->ops;		//
 	tty->index = idx;
 	tty_line_name(driver, idx, tty->name);
 	tty->dev = tty_get_device(tty);
@@ -3126,7 +3124,7 @@ struct device *tty_register_device_attr(struct tty_driver *driver,
 	if (driver->type == TTY_DRIVER_TYPE_PTY)
 		pty_line_name(driver, index, name);
 	else
-		tty_line_name(driver, index, name);
+		tty_line_name(driver, index, name);	//
 
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
 	if (!dev)
@@ -3136,13 +3134,13 @@ struct device *tty_register_device_attr(struct tty_driver *driver,
 	dev->class = tty_class;
 	dev->parent = device;
 	dev->release = tty_device_create_release;
-	dev_set_name(dev, "%s", name);
+	dev_set_name(dev, "%s", name);		//
 	dev->groups = attr_grp;
 	dev_set_drvdata(dev, drvdata);
 
 	dev_set_uevent_suppress(dev, 1);
 
-	retval = device_register(dev);
+	retval = device_register(dev);		
 	if (retval)
 		goto err_put;
 
@@ -3157,13 +3155,13 @@ struct device *tty_register_device_attr(struct tty_driver *driver,
 			kfree(tp);
 		}
 
-		retval = tty_cdev_add(driver, devt, index, 1);
+		retval = tty_cdev_add(driver, devt, index, 1);		//
 		if (retval)
 			goto err_del;
 	}
 
 	dev_set_uevent_suppress(dev, 0);
-	kobject_uevent(&dev->kobj, KOBJ_ADD);
+	kobject_uevent(&dev->kobj, KOBJ_ADD);	//创建设备节点
 
 	return dev;
 
@@ -3229,9 +3227,9 @@ struct tty_driver *__tty_alloc_driver(unsigned int lines, struct module *owner,
 
 	if (!(flags & TTY_DRIVER_DEVPTS_MEM)) {
 		driver->ttys = kcalloc(lines, sizeof(*driver->ttys),
-				GFP_KERNEL);
+				GFP_KERNEL);	//
 		driver->termios = kcalloc(lines, sizeof(*driver->termios),
-				GFP_KERNEL);
+				GFP_KERNEL);	//
 		if (!driver->ttys || !driver->termios) {
 			err = -ENOMEM;
 			goto err_free_all;
@@ -3240,15 +3238,15 @@ struct tty_driver *__tty_alloc_driver(unsigned int lines, struct module *owner,
 
 	if (!(flags & TTY_DRIVER_DYNAMIC_ALLOC)) {
 		driver->ports = kcalloc(lines, sizeof(*driver->ports),
-				GFP_KERNEL);
+				GFP_KERNEL);	//
 		if (!driver->ports) {
 			err = -ENOMEM;
 			goto err_free_all;
 		}
-		cdevs = lines;
+		cdevs = lines;		//
 	}
 
-	driver->cdevs = kcalloc(cdevs, sizeof(*driver->cdevs), GFP_KERNEL);
+	driver->cdevs = kcalloc(cdevs, sizeof(*driver->cdevs), GFP_KERNEL);		//
 	if (!driver->cdevs) {
 		err = -ENOMEM;
 		goto err_free_all;
@@ -3330,24 +3328,24 @@ int tty_register_driver(struct tty_driver *driver)
 		}
 	} else {
 		dev = MKDEV(driver->major, driver->minor_start);
-		error = register_chrdev_region(dev, driver->num, driver->name);
+		error = register_chrdev_region(dev, driver->num, driver->name);	//
 	}
 	if (error < 0)
 		goto err;
 
-	if (driver->flags & TTY_DRIVER_DYNAMIC_ALLOC) {
-		error = tty_cdev_add(driver, dev, 0, driver->num);
+	if (driver->flags & TTY_DRIVER_DYNAMIC_ALLOC) {		//没有这个flags所以不执行
+		error = tty_cdev_add(driver, dev, 0, driver->num);	
 		if (error)
 			goto err_unreg_char;
 	}
 
 	mutex_lock(&tty_mutex);
-	list_add(&driver->tty_drivers, &tty_drivers);
+	list_add(&driver->tty_drivers, &tty_drivers);		//
 	mutex_unlock(&tty_mutex);
 
 	if (!(driver->flags & TTY_DRIVER_DYNAMIC_DEV)) {
 		for (i = 0; i < driver->num; i++) {
-			d = tty_register_device(driver, i, NULL);
+			d = tty_register_device(driver, i, NULL);		//
 			if (IS_ERR(d)) {
 				error = PTR_ERR(d);
 				goto err_unreg_devs;

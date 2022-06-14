@@ -43,13 +43,13 @@ void *down_thread(void *arg);
 
 
 /* 测试数据量,调节o_job_fire_num然后算出m,再算出total_times */
-#define TEST_JOB_FIRE_NUM 10*1000
+#define TEST_JOB_FIRE_NUM 1000
 #define TEST_JOB_NUM 16
 unsigned int o_job_fire_num = TEST_JOB_FIRE_NUM;
 unsigned int job_num = TEST_JOB_NUM;
 
 /* 打印参数 */
-unsigned long raster_sim_params_regs[RASTER_SIM_PARAMS_REGS_NUM] = {1, 1500};
+unsigned long raster_sim_params_regs[RASTER_SIM_PARAMS_REGS_NUM] = {1, 2000};
 unsigned long pd_sim_params_regs[PD_SIM_PARAMS_REGS_NUM] = {0x1, DEFAULT_REG_VAL, TEST_JOB_NUM, 100, TEST_JOB_FIRE_NUM};
 unsigned long divisor_params_regs[DIVISOR_PARAMS_REGS_NUM] = {24, 1, 8};
 unsigned long job_params_regs[JOB_PARAMS_REGS_NUM] = {[0] = 0x5, [3] = TEST_JOB_FIRE_NUM, [4] = 0x400000};
@@ -89,7 +89,7 @@ int main(void)
 	 * 先通过init_print_info设置g_print_info的函数和数据成员的默认值
      * 然后在通过设置好的print_init成员函数打开设备文件,设置好g_print_info的数据成员
 	 */
-	Init_print_info(&g_print_info);
+	init_print_info(&g_print_info);
 
 	
 	up_fd = g_print_info.up_fd;
@@ -153,10 +153,10 @@ int main(void)
 	 * 中断bit[5]表示打印异常停止。打印输出寄存器内容,测试结束
 	 */ 
 	for (up_i = 0; ; up_i++) {
-		ret = read(up_fd, up_buf, up_blk_size * up_blks_one_time);	
+		ret = Read(up_fd, up_buf, up_blk_size * up_blks_one_time);	
 		if ((u32)ret != up_blk_size * up_blks_one_time) {			//打印结束中断
 			if (ret == HAN_E_PT_FIN) {
-				printf("up read normal stop, index %d\n", up_i);			
+				printf("up read normal stop, index %d, ok\n", up_i);			
 				goto loop_release_down_thread;
 			} else if (ret == HAN_E_PT_EXPT) {
 				printf("up read accident stop, index %d\n", up_i);
@@ -183,10 +183,10 @@ loop_release_free_mem:
 	/* step 7 */
 	//g_print_info.print_disable(&g_print_info);
 
-	/* 释放资源 */
-	free(up_buf);
+	/* 释放资源 */	
+	close_print_info(&g_print_info);
 	free(ph0_data);
-	Close_print_info(&g_print_info);
+	free(up_buf);
 	
 	return 0;
 }
@@ -204,12 +204,12 @@ void *down_thread(void *arg)
 
 
 	//先发送一块dma
-	ret = read(down_fd, &read_info, sizeof(read_info));
+	ret = Read(down_fd, &read_info, sizeof(read_info));
 	if ((u32)ret != sizeof(read_info) || read_info.mem_index != 0) {
 		fprintf(stderr, "Error at line %d, file %s\n", __LINE__, __FILE__);
 		return NULL;
 	}
-	ret = write(down_fd, ph0_data, down_blk_size * down_blks_one_time);
+	ret = Write(down_fd, ph0_data, down_blk_size * down_blks_one_time);
 	if ((u32)ret != down_blk_size * down_blks_one_time) {
 		fprintf(stderr, "Error at line %d, file %s\n", __LINE__, __FILE__);
 		return NULL;
@@ -221,7 +221,7 @@ void *down_thread(void *arg)
 
 	//发送第二块到最后一块
 	for (down_i = 1; down_i < total_times; down_i++) {
-		ret = read(down_fd, &read_info, sizeof(read_info));
+		ret = Read(down_fd, &read_info, sizeof(read_info));
 		if ((u32)ret != sizeof(read_info)) {	//为了和up保持代码一致，硬件不出问题不会在下行期间来结束打印中断
 			if (ret == HAN_E_PT_FIN) {
 				fprintf(stderr, "Error at line %d, file %s\n", __LINE__, __FILE__);
@@ -239,7 +239,7 @@ void *down_thread(void *arg)
 			return NULL;
 		}
 
-		ret = write(down_fd, ph0_data, down_blk_size * down_blks_one_time);
+		ret = Write(down_fd, ph0_data, down_blk_size * down_blks_one_time);
 		if ((u32)ret != down_blk_size * down_blks_one_time) {
 			fprintf(stderr, "Error at line %d, file %s\n", __LINE__, __FILE__);
 			return NULL;

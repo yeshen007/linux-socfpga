@@ -411,7 +411,7 @@ static ssize_t new_sync_read(struct file *filp, char __user *buf, size_t len, lo
 	kiocb.ki_pos = (ppos ? *ppos : 0);
 	iov_iter_init(&iter, READ, &iov, 1, len);
 
-	ret = call_read_iter(filp, &kiocb, &iter);
+	ret = call_read_iter(filp, &kiocb, &iter);	//
 	BUG_ON(ret == -EIOCBQUEUED);
 	if (ppos)
 		*ppos = kiocb.ki_pos;
@@ -423,8 +423,8 @@ ssize_t __vfs_read(struct file *file, char __user *buf, size_t count,
 {
 	if (file->f_op->read)
 		return file->f_op->read(file, buf, count, pos);
-	else if (file->f_op->read_iter)
-		return new_sync_read(file, buf, count, pos);
+	else if (file->f_op->read_iter)	
+		return new_sync_read(file, buf, count, pos);	//
 	else
 		return -EINVAL;
 }
@@ -458,7 +458,7 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 	if (!ret) {
 		if (count > MAX_RW_COUNT)
 			count =  MAX_RW_COUNT;
-		ret = __vfs_read(file, buf, count, pos);
+		ret = __vfs_read(file, buf, count, pos);	//
 		if (ret > 0) {
 			fsnotify_access(file);
 			add_rchar(current, ret);

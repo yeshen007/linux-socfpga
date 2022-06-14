@@ -8,6 +8,9 @@
 #include "print_config_control.h"
 
 
+/* 测试数据量 */
+#define TEST_TIMES 	(100)
+
 
 #define DEFAULT_REG_VAL 0
 
@@ -20,10 +23,23 @@
 #define NOZZLE_SWITCH_REGS_NUM 6
 #define SEARCH_LABEL_PARAMS_NUM 5
 
+/* 打印参数 */
+static unsigned long raster_sim_params_regs[RASTER_SIM_PARAMS_REGS_NUM] = {1, 550};
+static unsigned long pd_sim_params_regs[PD_SIM_PARAMS_REGS_NUM] = {DEFAULT_REG_VAL};
+static unsigned long divisor_params_regs[DIVISOR_PARAMS_REGS_NUM] = {24, 1, 8};
+static unsigned long job_params_regs[JOB_PARAMS_REGS_NUM] = {[0] = 0x1, [4] = 0x400000};
+static unsigned long print_offset_regs[PRINT_OFFSET_REGS_NUM] = {1200,(20<<16|0),(84<<16|64),(114<<16|94),(178<<16|158),
+														  (206<<16|186),(270<<16|250),(300<<16|280),(364<<16|344)};
+
+static unsigned long fire_delay_regs[FIRE_DELAY_REGS_NUM] = {DEFAULT_REG_VAL};
+static unsigned long nozzle_switch_regs[NOZZLE_SWITCH_REGS_NUM] = {DEFAULT_REG_VAL};
+static unsigned long search_label_params[SEARCH_LABEL_PARAMS_NUM] = {DEFAULT_REG_VAL};
 
 /* 打印核心管理信息 */
 static print_info_t g_print_info;
 
+/* nonblock测试 */
+#define NONBLOCK_TEST
 
 int main(void)
 {	
@@ -33,29 +49,12 @@ int main(void)
 	u8 *ph0_data = (u8 *)malloc(2 * PH1_USERBUF_OFFSET);
 	u8 *ph1_data = ph0_data + PH1_USERBUF_OFFSET;	
 
-	unsigned int times;
+	int times;
 	struct f2sm_read_info_t read_info;
 	unsigned int dma_blks_one_time = 16;
 	unsigned int sended_blks_cnt = 0;
 	unsigned long ph0_seed = 66;
 	unsigned long ph1_seed = 99;
-
-	/* 测试数据量,调节o_job_fire_num然后算出m,再算出total_times */
-	unsigned int o_job_fire_num = 10*10000;
-	unsigned int job_num = 10;
-	unsigned int m = (o_job_fire_num * job_num)/4;				
-	unsigned int total_times = m/dma_blks_one_time;
-
-	/* 打印参数 */
-	unsigned long raster_sim_params_regs[RASTER_SIM_PARAMS_REGS_NUM] = {1, 55};
-	unsigned long pd_sim_params_regs[PD_SIM_PARAMS_REGS_NUM] = {0x1, DEFAULT_REG_VAL, job_num, 100, o_job_fire_num};
-	unsigned long divisor_params_regs[DIVISOR_PARAMS_REGS_NUM] = {24, 1, 8};
-	unsigned long job_params_regs[JOB_PARAMS_REGS_NUM] = {[0] = 0x5, [3] = o_job_fire_num, [4] = 0x400000};
-	unsigned long print_offset_regs[PRINT_OFFSET_REGS_NUM] = {1200,(20<<16|0),(84<<16|64),(114<<16|94),(178<<16|158),
-															  (206<<16|186),(270<<16|250),(300<<16|280),(364<<16|344)};
-	unsigned long fire_delay_regs[FIRE_DELAY_REGS_NUM] = {DEFAULT_REG_VAL};
-	unsigned long nozzle_switch_regs[NOZZLE_SWITCH_REGS_NUM] = {DEFAULT_REG_VAL};
-	unsigned long search_label_params[SEARCH_LABEL_PARAMS_NUM] = {100,1,o_job_fire_num,1,1};	
 
 	/* 构造发送给fpga的数据 */
 	ret = build_fpga_data(ph0_data, ph1_data, block_size, block_cnt);
@@ -69,12 +68,17 @@ int main(void)
 		return -1;
 	}	
 
-	/* 初始化,这两步缺一不可
+	/* 初始化
 	 * 先通过init_print_info设置g_print_info的函数和数据成员的默认值
      * 然后在通过设置好的print_init成员函数打开设备文件,设置好g_print_info的数据成员
 	 */
 	init_print_info(&g_print_info);
 
+#ifdef NONBLOCK_TEST
+	/* 设置上行和下行非阻塞 */
+	g_print_info.print_nonblock_up(&g_print_info);
+	g_print_info.print_nonblock_down(&g_print_info);
+#endif
 
 	/* step 0 */
 	g_print_info.config_master(&g_print_info);
@@ -99,14 +103,21 @@ int main(void)
 
 	/* step 5 */
 	memset(&read_info,0,sizeof(read_info));
+#ifdef NONBLOCK_TEST	
+	ret = Read_again(g_print_info.down_fd, &read_info, sizeof(read_info));
+#else
 	ret = Read(g_print_info.down_fd, &read_info, sizeof(read_info));
+#endif
 	printf("first read must not wait\n");
 	if (ret != sizeof(read_info)) {
 		printf("first read error\n");
 		return -1;
 	}
-	
+#ifdef NONBLOCK_TEST	
+	ret = Write_again(g_print_info.down_fd, ph0_data, dma_blks_one_time * block_size);
+#else
 	ret = Write(g_print_info.down_fd, ph0_data, dma_blks_one_time * block_size);
+#endif
 	if (ret != (int)(dma_blks_one_time * block_size)) {
 		printf("first write error\n");
 		return -1;		
@@ -115,7 +126,11 @@ int main(void)
 	g_print_info.starttransfer_down_seed(&g_print_info, ph0_seed, ph1_seed, dma_blks_one_time);
 	
 	memset(&read_info, 0, sizeof(read_info));
+#ifdef NONBLOCK_TEST	
+	ret = Read_again(g_print_info.down_fd, &read_info, sizeof(read_info));
+#else
 	ret = Read(g_print_info.down_fd, &read_info, sizeof(read_info));
+#endif
 	if (ret != sizeof(read_info)) {
 		printf("second read error\n");
 		return -1;
@@ -134,38 +149,50 @@ int main(void)
 	 * 收到硬件中断bit[4]表示打印正常结束/收到硬件中断bit[5]表示打印异常停止.
 	 * 打印输出寄存器内容,测试结束.
 	 */
-	for (times = 1; times < total_times; times++) {
+	for (times = 1; times < TEST_TIMES; times++) {
+#ifdef NONBLOCK_TEST		
+		ret = Write_again(g_print_info.down_fd, ph0_data, dma_blks_one_time * block_size);
+#else
 		ret = Write(g_print_info.down_fd, ph0_data, dma_blks_one_time * block_size);
+#endif
 		if (ret != (int)(dma_blks_one_time * block_size)) {
 			printf("write error\n");
 			return -1;		
 		}
 		
 		g_print_info.starttransfer_down_seed(&g_print_info, ph0_seed, ph1_seed, dma_blks_one_time);
-		
+	
 		memset(&read_info,0,sizeof(read_info));
+#ifdef NONBLOCK_TEST	
+		ret = Read_again(g_print_info.down_fd, &read_info, sizeof(read_info));
+#else
 		ret = Read(g_print_info.down_fd, &read_info, sizeof(read_info));
+#endif
 		if (ret != sizeof(read_info)) 
 			goto finish_print;
-	
+
 	}
 
 	/* 等待正常结束打印或者异常结束打印 */
+#ifdef NONBLOCK_TEST	
+	ret = Read_again(g_print_info.down_fd, &read_info, sizeof(read_info));
+#else
 	ret = Read(g_print_info.down_fd, &read_info, sizeof(read_info));
+#endif
 finish_print:	
 	if (ret == HAN_E_PT_FIN) 
 		printf("down read normal stop, ok\n");
 	else 
 		printf("down read stop bad at or before the last time\n");
 
-
+		
 
 	/* step 7 */
 	//g_print_info.print_disable(&g_print_info);
 
 	/* 释放资源 */
 	close_print_info(&g_print_info);
-	free(ph0_data);	
+	free(ph0_data);
 	
 	return 0;
 }

@@ -2128,7 +2128,6 @@ static int job_control(struct tty_struct *tty, struct file *file)
  *		claims non-exclusive termios_rwsem
  *		publishes read_tail
  */
-
 static ssize_t n_tty_read(struct tty_struct *tty, struct file *file,
 			 unsigned char __user *buf, size_t nr)
 {
@@ -2162,7 +2161,7 @@ static ssize_t n_tty_read(struct tty_struct *tty, struct file *file,
 	minimum = time = 0;
 	timeout = MAX_SCHEDULE_TIMEOUT;
 	if (!ldata->icanon) {
-		minimum = MIN_CHAR(tty);
+		minimum = MIN_CHAR(tty);	//获取用户的超时时间
 		if (minimum) {
 			time = (HZ / 10) * TIME_CHAR(tty);
 		} else {
@@ -2224,7 +2223,8 @@ static ssize_t n_tty_read(struct tty_struct *tty, struct file *file,
 				up_read(&tty->termios_rwsem);
 
 				timeout = wait_woken(&wait, TASK_INTERRUPTIBLE,
-						timeout);
+						timeout);		//没有数据则睡眠,被中断中的处理函数
+										//层层调用flush_to_disc唤醒
 
 				down_read(&tty->termios_rwsem);
 				continue;
@@ -2248,7 +2248,7 @@ static ssize_t n_tty_read(struct tty_struct *tty, struct file *file,
 				nr--;
 			}
 
-			uncopied = copy_from_read_buf(tty, &b, &nr);
+			uncopied = copy_from_read_buf(tty, &b, &nr);	//从行规层读取数据
 			uncopied += copy_from_read_buf(tty, &b, &nr);
 			if (uncopied) {
 				retval = -EFAULT;
@@ -2297,7 +2297,6 @@ static ssize_t n_tty_read(struct tty_struct *tty, struct file *file,
  *		 (note that the process_output*() functions take this
  *		  lock themselves)
  */
-
 static ssize_t n_tty_write(struct tty_struct *tty, struct file *file,
 			   const unsigned char *buf, size_t nr)
 {
@@ -2353,7 +2352,7 @@ static ssize_t n_tty_write(struct tty_struct *tty, struct file *file,
 
 			while (nr > 0) {
 				mutex_lock(&ldata->output_lock);
-				c = tty->ops->write(tty, b, nr);
+				c = tty->ops->write(tty, b, nr);	//uart_ops.write(uart_write)
 				mutex_unlock(&ldata->output_lock);
 				if (c < 0) {
 					retval = c;

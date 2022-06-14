@@ -1149,7 +1149,7 @@ static int ext4_write_begin(struct file *file, struct address_space *mapping,
 	 * the page (if needed) without using GFP_NOFS.
 	 */
 retry_grab:
-	page = grab_cache_page_write_begin(mapping, index, flags);
+	page = grab_cache_page_write_begin(mapping, index, flags);	//获得pagecache
 	if (!page)
 		return -ENOMEM;
 	unlock_page(page);

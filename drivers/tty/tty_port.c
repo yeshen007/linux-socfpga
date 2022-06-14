@@ -155,16 +155,16 @@ struct device *tty_port_register_device_attr_serdev(struct tty_port *port,
 {
 	struct device *dev;
 
-	tty_port_link_device(port, driver, index);
+	tty_port_link_device(port, driver, index);		//
 
-	dev = serdev_tty_port_register(port, device, driver, index);
+	dev = serdev_tty_port_register(port, device, driver, index);	
 	if (PTR_ERR(dev) != -ENODEV) {
 		/* Skip creating cdev if we registered a serdev device */
 		return dev;
 	}
 
 	return tty_register_device_attr(driver, index, device, drvdata,
-			attr_grp);
+			attr_grp);	//
 }
 EXPORT_SYMBOL_GPL(tty_port_register_device_attr_serdev);
 
@@ -685,7 +685,7 @@ int tty_port_open(struct tty_port *port, struct tty_struct *tty,
 	if (!tty_port_initialized(port)) {
 		clear_bit(TTY_IO_ERROR, &tty->flags);
 		if (port->ops->activate) {
-			int retval = port->ops->activate(port, tty);
+			int retval = port->ops->activate(port, tty);	//uart_port_ops.uart_port_activate
 			if (retval) {
 				mutex_unlock(&port->mutex);
 				return retval;

@@ -240,11 +240,11 @@ static void altera_uart_rx_chars(struct altera_uart *pp)
 		if (uart_handle_sysrq_char(port, ch))
 			continue;
 		uart_insert_char(port, status, ALTERA_UART_STATUS_ROE_MSK, ch,
-				 flag);
+				 flag);		//存入tty buffer
 	}
 
 	spin_unlock(&port->lock);
-	tty_flip_buffer_push(&port->state->port);
+	tty_flip_buffer_push(&port->state->port);		//通知行规层来取出tty buffer
 	spin_lock(&port->lock);
 }
 
@@ -263,7 +263,7 @@ static void altera_uart_tx_chars(struct altera_uart *pp)
 
 	while (altera_uart_readl(port, ALTERA_UART_STATUS_REG) &
 	       ALTERA_UART_STATUS_TRDY_MSK) {
-		if (xmit->head == xmit->tail)
+		if (xmit->head == xmit->tail)	//如果环形缓冲区空了则退出循环
 			break;
 		altera_uart_writel(port, xmit->buf[xmit->tail],
 		       ALTERA_UART_TXDATA_REG);
@@ -274,6 +274,9 @@ static void altera_uart_tx_chars(struct altera_uart *pp)
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
 		uart_write_wakeup(port);
 
+	/* 如果环形缓冲区空了则将ALTERA_UART_CONTROL_TRDY_MSK位关闭就不会
+     * 一直触发中断了,直到
+	 */
 	if (xmit->head == xmit->tail) {
 		pp->imr &= ~ALTERA_UART_CONTROL_TRDY_MSK;
 		altera_uart_update_ctrl_reg(pp);
@@ -288,6 +291,7 @@ static irqreturn_t altera_uart_interrupt(int irq, void *data)
 
 	isr = altera_uart_readl(port, ALTERA_UART_STATUS_REG) & pp->imr;
 
+	//只要这两位任意一位置位都会产生中断
 	spin_lock(&port->lock);
 	if (isr & ALTERA_UART_STATUS_RRDY_MSK)
 		altera_uart_rx_chars(pp);
@@ -418,11 +422,11 @@ static const struct uart_ops altera_uart_ops = {
 	.tx_empty	= altera_uart_tx_empty,
 	.get_mctrl	= altera_uart_get_mctrl,
 	.set_mctrl	= altera_uart_set_mctrl,
-	.start_tx	= altera_uart_start_tx,
+	.start_tx	= altera_uart_start_tx,		//wirte时调用
 	.stop_tx	= altera_uart_stop_tx,
 	.stop_rx	= altera_uart_stop_rx,
 	.break_ctl	= altera_uart_break_ctl,
-	.startup	= altera_uart_startup,
+	.startup	= altera_uart_startup,		//open时调用
 	.shutdown	= altera_uart_shutdown,
 	.set_termios	= altera_uart_set_termios,
 	.type		= altera_uart_type,
@@ -546,7 +550,7 @@ static struct uart_driver altera_uart_driver = {
 	.dev_name	= "ttyAL",
 	.major		= SERIAL_ALTERA_MAJOR,
 	.minor		= SERIAL_ALTERA_MINOR,
-	.nr		= CONFIG_SERIAL_ALTERA_UART_MAXPORTS,
+	.nr		= CONFIG_SERIAL_ALTERA_UART_MAXPORTS,	/* 表示这个driver支持多少个port */
 	.cons		= ALTERA_UART_CONSOLE,
 };
 
@@ -556,7 +560,7 @@ static int altera_uart_probe(struct platform_device *pdev)
 	struct uart_port *port;
 	struct resource *res_mem;
 	struct resource *res_irq;
-	int i = pdev->id;
+	int i = pdev->id;	//PLATFORM_DEVID_NONE
 	int ret;
 
 	/* if id is -1 scan for a free id and use that one */
@@ -613,7 +617,7 @@ static int altera_uart_probe(struct platform_device *pdev)
 	port->flags = UPF_BOOT_AUTOCONF;
 	port->dev = &pdev->dev;
 
-	platform_set_drvdata(pdev, port);
+	platform_set_drvdata(pdev, port);	//
 
 	uart_add_one_port(&altera_uart_driver, port);
 

@@ -122,7 +122,7 @@ static void __uart_start(struct tty_struct *tty)
 	struct uart_port *port = state->uart_port;
 
 	if (port && !uart_tx_stopped(port))
-		port->ops->start_tx(port);
+		port->ops->start_tx(port);	//altera_uart_ops.start_tx
 }
 
 static void uart_start(struct tty_struct *tty)
@@ -216,7 +216,7 @@ static int uart_port_startup(struct tty_struct *tty, struct uart_state *state,
 		free_page(page);
 	}
 
-	retval = uport->ops->startup(uport);
+	retval = uport->ops->startup(uport);		//altera_uart_ops.startup
 	if (retval == 0) {
 		if (uart_console(uport) && uport->cons->cflag) {
 			tty->termios.c_cflag = uport->cons->cflag;
@@ -602,14 +602,14 @@ static int uart_write(struct tty_struct *tty,
 			c = count;
 		if (c <= 0)
 			break;
-		memcpy(circ->buf + circ->head, buf, c);
+		memcpy(circ->buf + circ->head, buf, c);	//
 		circ->head = (circ->head + c) & (UART_XMIT_SIZE - 1);
 		buf += c;
 		count -= c;
 		ret += c;
 	}
 
-	__uart_start(tty);
+	__uart_start(tty);	//
 	uart_port_unlock(port, flags);
 	return ret;
 }
@@ -1793,7 +1793,7 @@ static int uart_port_activate(struct tty_port *port, struct tty_struct *tty)
 	/*
 	 * Start up the serial port.
 	 */
-	ret = uart_startup(tty, state, 0);
+	ret = uart_startup(tty, state, 0);	//
 	if (ret > 0)
 		tty_port_set_active(port, 1);
 
@@ -2527,15 +2527,15 @@ int uart_register_driver(struct uart_driver *drv)
 	 * Maybe we should be using a slab cache for this, especially if
 	 * we have a large number of ports to handle.
 	 */
-	drv->state = kcalloc(drv->nr, sizeof(struct uart_state), GFP_KERNEL);
+	drv->state = kcalloc(drv->nr, sizeof(struct uart_state), GFP_KERNEL);	//
 	if (!drv->state)
 		goto out;
 
-	normal = alloc_tty_driver(drv->nr);
+	normal = alloc_tty_driver(drv->nr);	//
 	if (!normal)
 		goto out_kfree;
 
-	drv->tty_driver = normal;
+	drv->tty_driver = normal;	//
 
 	normal->driver_name	= drv->driver_name;
 	normal->name		= drv->dev_name;
@@ -2548,7 +2548,7 @@ int uart_register_driver(struct uart_driver *drv)
 	normal->init_termios.c_ispeed = normal->init_termios.c_ospeed = 9600;
 	normal->flags		= TTY_DRIVER_REAL_RAW | TTY_DRIVER_DYNAMIC_DEV;
 	normal->driver_state    = drv;
-	tty_set_operations(normal, &uart_ops);
+	tty_set_operations(normal, &uart_ops);		//
 
 	/*
 	 * Initialise the UART state(s).
@@ -2561,7 +2561,7 @@ int uart_register_driver(struct uart_driver *drv)
 		port->ops = &uart_port_ops;
 	}
 
-	retval = tty_register_driver(normal);
+	retval = tty_register_driver(normal);		//
 	if (retval >= 0)
 		return retval;
 
@@ -2834,7 +2834,7 @@ int uart_add_one_port(struct uart_driver *drv, struct uart_port *uport)
 	if (uport->cons && uport->dev)
 		of_console_check(uport->dev->of_node, uport->cons->name, uport->line);
 
-	tty_port_link_device(port, drv->tty_driver, uport->line);
+	tty_port_link_device(port, drv->tty_driver, uport->line);		//
 	uart_configure_port(drv, state, uport);
 
 	port->console = uart_console(uport);
@@ -2858,7 +2858,7 @@ int uart_add_one_port(struct uart_driver *drv, struct uart_port *uport)
 	 * setserial to be used to alter this port's parameters.
 	 */
 	tty_dev = tty_port_register_device_attr_serdev(port, drv->tty_driver,
-			uport->line, uport->dev, port, uport->tty_groups);
+			uport->line, uport->dev, port, uport->tty_groups);		//
 	if (!IS_ERR(tty_dev)) {
 		device_set_wakeup_capable(tty_dev, 1);
 	} else {
@@ -3068,7 +3068,7 @@ void uart_insert_char(struct uart_port *port, unsigned int status,
 	struct tty_port *tport = &port->state->port;
 
 	if ((status & port->ignore_status_mask & ~overrun) == 0)
-		if (tty_insert_flip_char(tport, ch, flag) == 0)
+		if (tty_insert_flip_char(tport, ch, flag) == 0)		//
 			++port->icount.buf_overrun;
 
 	/*

@@ -1893,13 +1893,13 @@ struct inode_operations {
 static inline ssize_t call_read_iter(struct file *file, struct kiocb *kio,
 				     struct iov_iter *iter)
 {
-	return file->f_op->read_iter(kio, iter);
+	return file->f_op->read_iter(kio, iter);	//ext4_file_operations.ext4_file_read_iter
 }
 
 static inline ssize_t call_write_iter(struct file *file, struct kiocb *kio,
 				      struct iov_iter *iter)
 {
-	return file->f_op->write_iter(kio, iter);
+	return file->f_op->write_iter(kio, iter);	//ext4_file_operations
 }
 
 static inline int call_mmap(struct file *file, struct vm_area_struct *vma)

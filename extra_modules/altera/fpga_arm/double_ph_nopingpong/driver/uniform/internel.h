@@ -8,7 +8,7 @@
 
 struct f2sm_buf_q
 {
-	int mem[4];   
+	int size;   
 	int head;
 	int tail;
 };
@@ -21,10 +21,7 @@ struct f2sm_read_info_t
 
 struct f2sm_ram_dev {
 	struct semaphore sem;
-	unsigned long open_count;
-	unsigned long release_count;
-	unsigned long write_count;
-	unsigned long write_byte_count;
+	unsigned long count;
     struct uio_info *p_uio_info;
 	int cur_io_buf_index;
 	struct platform_device *pdev;
@@ -79,17 +76,21 @@ struct dev_data_st
 #define HAN_TYPE_MAGIC	(('h' + 'a' + 'n') & 0xff)
 
 //nr
-#define HAN_NR_NORMAL		0x1
-#define HAN_NR_RESET		0x2
+#define HAN_NR_FPGA_REG		0x1
+#define HAN_NR_RESET_FPGA	0x2
 #define HAN_NR_PH_DMA		0x3
+#define HAN_NR_SOFT_STOP	0x4
 
 
 //cmd
-#define IOC_CMD_NONE	_IOC(_IOC_NONE,HAN_TYPE_MAGIC,HAN_NR_NORMAL,0)		//设置寄存器固定值或者读取寄存器但不传给用户
-#define IOC_CMD_READ	_IOC(_IOC_READ,HAN_TYPE_MAGIC,HAN_NR_NORMAL,0)		//读取寄存器值给用户
-#define IOC_CMD_WRITE	_IOC(_IOC_WRITE,HAN_TYPE_MAGIC,HAN_NR_NORMAL,0)		//设置用户传入的寄存器值
-#define IOC_CMD_RESET	_IOC(_IOC_NONE,HAN_TYPE_MAGIC,HAN_NR_RESET,0)		//设置复位寄存器使fpga复位
-#define IOC_CMD_PH_DMA	_IOC(_IOC_READ,HAN_TYPE_MAGIC,HAN_NR_PH_DMA,0)		//用户获取ph的dma buffer物理地址信息
+#if 0
+#define IOC_CMD_NONE	_IOC(_IOC_NONE,HAN_TYPE_MAGIC,HAN_NR_FPGA_REG,0)		//设置寄存器固定值或者读取寄存器但不传给用户
+#endif
+#define IOC_CMD_READ	_IOC(_IOC_READ,HAN_TYPE_MAGIC,HAN_NR_FPGA_REG,0)		//读取寄存器值给用户
+#define IOC_CMD_WRITE	_IOC(_IOC_WRITE,HAN_TYPE_MAGIC,HAN_NR_FPGA_REG,0)		//设置用户传入的寄存器值
+#define IOC_CMD_RESET	_IOC(_IOC_NONE,HAN_TYPE_MAGIC,HAN_NR_RESET_FPGA,0)		//设置复位寄存器使fpga复位
+#define IOC_CMD_PH_DMA	_IOC(_IOC_READ,HAN_TYPE_MAGIC,HAN_NR_PH_DMA,0)			//用户获取ph的dma buffer物理地址信息
+#define IOC_CMD_STOP	_IOC(_IOC_NONE,HAN_TYPE_MAGIC,HAN_NR_SOFT_STOP,0)		//退出阻塞
 
 
 typedef struct user_info {

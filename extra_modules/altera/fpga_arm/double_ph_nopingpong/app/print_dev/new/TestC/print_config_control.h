@@ -11,10 +11,10 @@
 #define DOWN_DEV "/dev/down_dev"			//下行设置节点
 
 //#define MEM_PHY_UP 0x30000000				//上行dma buffer物理地址,ph0 0x30000000,ph1 0x31000000
-//#define MEM_PHY_UP_SIZE 0x02000000			//上行dma buffer大小,ph0和ph1各0x01000000
-//#define MEM_PHY_DOWN 0x32000000				//下行dma buffer物理地址,ph0 0x32000000,ph1 0x33000000
+//#define MEM_PHY_UP_SIZE 0x02000000		//上行dma buffer大小,ph0和ph1各0x01000000
+//#define MEM_PHY_DOWN 0x32000000			//下行dma buffer物理地址,ph0 0x32000000,ph1 0x33000000
 //#define MEM_PHY_DOWN_SIZE 0x02000000		//下行dma buffer大小,ph0和ph1各0x01000000
-#define PH1_OFFSET 0x01000000
+#define PH1_OFFSET 0x01000000				//dma buffer中ph0部分和ph1部分的偏移
 
 #define UP_MEM_INDEX 	0
 #define DOWN_MEM_INDEX 	1
@@ -31,6 +31,10 @@ typedef struct print_info {
 
 	void (*print_init)(struct print_info *print_info);	//打开设备文件并赋给up_fd、down_fd,获取设置dma地址信息mem_info
 	void (*print_close)(struct print_info *print_info);	//释放up_fd、down_fd、mem_info
+	void (*print_stop)(struct print_info *print_info);	//软件主动退出阻塞
+	void (*print_reset)(struct print_info *print_info);	//软件复位fpga
+	void (*print_nonblock_up)(struct print_info *print_info);	//设置上行为非阻塞,默认为阻塞模式
+	void (*print_nonblock_down)(struct print_info *print_info);	//设置下行为非阻塞,默认为阻塞模式
 
 	/* prbs和dma */
 	//starttransfer_up设置ph0和ph1的上行dma物理地址和大小,然后启动上行dma
@@ -67,12 +71,7 @@ typedef struct print_info {
 } print_info_t;
 
 
-/* 只初始化print_info的打印函数,数据成员只设置为一个不能用的默认值 */
-void init_print_info(struct print_info *print_info);
-void close_print_info(struct print_info *print_info);	//print_info的打印函数设置为NULL
-
-/* 完全初始化,即初始化print_info的打印函数也初始化数据成员up_fd,down_fd,mem_info */
-void Init_print_info(struct print_info *print_info);
-void Close_print_info(struct print_info *print_info);	//print_info的打印函数设置为NULL,同时释放up_fd,down_fd
+void init_print_info(struct print_info *print_info);		//初始化print_info的打印函数和数据成员up_fd,down_fd,mem_info 
+void close_print_info(struct print_info *print_info);	//print_info的打印函数设置为NULL,同时释放up_fd,down_fd
 
 #endif

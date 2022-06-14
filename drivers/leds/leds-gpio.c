@@ -289,7 +289,7 @@ static int gpio_led_probe(struct platform_device *pdev)
 			if (ret < 0)
 				return ret;
 		}
-	} else {
+	} else {	//走这条分支
 		priv = gpio_leds_create(pdev);
 		if (IS_ERR(priv))
 			return PTR_ERR(priv);

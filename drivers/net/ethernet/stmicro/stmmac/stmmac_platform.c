@@ -453,7 +453,7 @@ stmmac_probe_config_dt(struct platform_device *pdev, const char **mac)
 		dev_warn(&pdev->dev, "snps,phy-addr property is deprecated\n");
 
 	/* To Configure PHY by using all device-tree supported properties */
-	rc = stmmac_dt_phy(plat, np, &pdev->dev);
+	rc = stmmac_dt_phy(plat, np, &pdev->dev);		//
 	if (rc)
 		return ERR_PTR(rc);
 

@@ -543,7 +543,7 @@ int cdev_device_add(struct cdev *cdev, struct device *dev)
 			return rc;
 	}
 
-	rc = device_add(dev);
+	rc = device_add(dev);		//创建/dev设备节点
 	if (rc)
 		cdev_del(cdev);
 

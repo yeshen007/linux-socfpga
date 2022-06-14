@@ -70,7 +70,7 @@ int main(void)
 	 * 先通过init_print_info设置g_print_info的函数和数据成员的默认值
      * 然后在通过设置好的print_init成员函数打开设备文件,设置好g_print_info的数据成员
 	 */
-	Init_print_info(&g_print_info);
+	init_print_info(&g_print_info);
 
 	/* step 0 */
 	g_print_info.config_master(&g_print_info);
@@ -95,14 +95,14 @@ int main(void)
 
 	/* step 5 */
 	memset(&read_info,0,sizeof(read_info));
-	ret = read(g_print_info.down_fd, &read_info, sizeof(read_info));
+	ret = Read(g_print_info.down_fd, &read_info, sizeof(read_info));
 	printf("first read must not wait\n");
 	if (ret != sizeof(read_info)) {
 		printf("first read error\n");
 		return -1;
 	}
 	
-	ret = write(g_print_info.down_fd, ph0_data, dma_blks_one_time * block_size);
+	ret = Write(g_print_info.down_fd, ph0_data, dma_blks_one_time * block_size);
 	if (ret != (int)(dma_blks_one_time * block_size)) {
 		printf("first write error\n");
 		return -1;		
@@ -111,7 +111,7 @@ int main(void)
 	g_print_info.starttransfer_down_seed(&g_print_info, ph0_seed, ph1_seed, dma_blks_one_time);
 	
 	memset(&read_info, 0, sizeof(read_info));
-	ret = read(g_print_info.down_fd, &read_info, sizeof(read_info));
+	ret = Read(g_print_info.down_fd, &read_info, sizeof(read_info));
 	if (ret != sizeof(read_info)) {
 		printf("second read error\n");
 		return -1;
@@ -131,7 +131,7 @@ int main(void)
 	 * 打印输出寄存器内容,测试结束.
 	 */
 	for (times = 1; times < TEST_TIMES; times++) {
-		ret = write(g_print_info.down_fd, ph0_data, dma_blks_one_time * block_size);
+		ret = Write(g_print_info.down_fd, ph0_data, dma_blks_one_time * block_size);
 		if (ret != (int)(dma_blks_one_time * block_size)) {
 			printf("write error\n");
 			return -1;		
@@ -140,30 +140,28 @@ int main(void)
 		g_print_info.starttransfer_down_seed(&g_print_info, ph0_seed, ph1_seed, dma_blks_one_time);
 		
 		memset(&read_info,0,sizeof(read_info));
-		ret = read(g_print_info.down_fd, &read_info, sizeof(read_info));
-		if (ret != sizeof(read_info)) {
-			printf("get print interrupt or read error\n");
+		ret = Read(g_print_info.down_fd, &read_info, sizeof(read_info));
+		if (ret != sizeof(read_info)) 
 			goto finish_print;
-		}	
+			
 	}
 
 	/* 等待正常结束打印或者异常结束打印 */
-	ret = read(g_print_info.down_fd, &read_info, sizeof(read_info));
+	ret = Read(g_print_info.down_fd, &read_info, sizeof(read_info));
 finish_print:	
 	if (ret == HAN_E_PT_FIN) 
-		printf("down read normal stop\n");
-	else if (ret == HAN_E_PT_EXPT) 
-		printf("down read accident stop\n");
+		printf("down read normal stop, ok\n");
 	else 
-		printf("down read wrong,ret value %d\n", ret);
+		printf("down read stop bad at or before the last time\n");
+
 		
 
 	/* step 7 */
 	//g_print_info.print_disable(&g_print_info);
 
 	/* 释放资源 */
+	close_print_info(&g_print_info);
 	free(ph0_data);
-	Close_print_info(&g_print_info);
 	
 	return 0;
 }

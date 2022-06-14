@@ -2279,9 +2279,10 @@ generic_file_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 	if (!count)
 		goto out; /* skip atime */
 
-	if (iocb->ki_flags & IOCB_DIRECT) {
+	//DIRECT IO
+	if (iocb->ki_flags & IOCB_DIRECT) {		
 		struct file *file = iocb->ki_filp;
-		struct address_space *mapping = file->f_mapping;
+		struct address_space *mapping = file->f_mapping;	//ext4_aops
 		struct inode *inode = mapping->host;
 		loff_t size;
 
@@ -2300,7 +2301,7 @@ generic_file_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 
 		file_accessed(file);
 
-		retval = mapping->a_ops->direct_IO(iocb, iter);
+		retval = mapping->a_ops->direct_IO(iocb, iter);	
 		if (retval >= 0) {
 			iocb->ki_pos += retval;
 			count -= retval;
@@ -2321,7 +2322,8 @@ generic_file_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 			goto out;
 	}
 
-	retval = generic_file_buffered_read(iocb, iter, retval);
+	//BUFFERD IO
+	retval = generic_file_buffered_read(iocb, iter, retval); 
 out:
 	return retval;
 }
@@ -3306,19 +3308,20 @@ again:
 			break;
 		}
 
+		//在文件的address_space中根据pos找到缓存页，找不到就创建缓存页插入address_space的基数树中
 		status = a_ops->write_begin(file, mapping, pos, bytes, flags,
-						&page, &fsdata);
+						&page, &fsdata);	//ext4_aops ext4_write_begin
 		if (unlikely(status < 0))
 			break;
 
 		if (mapping_writably_mapped(mapping))
 			flush_dcache_page(page);
 
-		copied = iov_iter_copy_from_user_atomic(page, i, offset, bytes);
+		copied = iov_iter_copy_from_user_atomic(page, i, offset, bytes);	//从用户拷贝到内核
 		flush_dcache_page(page);
 
 		status = a_ops->write_end(file, mapping, pos, bytes, copied,
-						page, fsdata);
+						page, fsdata);	//将缓存页标记为脏
 		if (unlikely(status < 0))
 			break;
 		copied = status;
@@ -3342,7 +3345,7 @@ again:
 		pos += copied;
 		written += copied;
 
-		balance_dirty_pages_ratelimited(mapping);
+		balance_dirty_pages_ratelimited(mapping);		//
 	} while (iov_iter_count(i));
 
 	return written ? written : status;

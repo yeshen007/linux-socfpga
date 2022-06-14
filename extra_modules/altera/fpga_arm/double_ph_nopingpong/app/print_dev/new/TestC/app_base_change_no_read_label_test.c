@@ -118,7 +118,7 @@ void base_call(void)
 
 	//发送第一块到最后一块
 	for (down_i = 0; down_i < base_total / (down_blks_one_time * down_blk_size); down_i++) {
-		ret = read(g_down_fd, &read_info, sizeof(read_info));
+		ret = Read(g_down_fd, &read_info, sizeof(read_info));
 		if ((u32)ret != sizeof(read_info)) {	//为了和up保持代码一致，硬件不出问题不会在下行期间来结束打印中断
 			if (ret == HAN_E_PT_FIN) {
 				fprintf(stderr, "Error at line %d, file %s\n", __LINE__, __FILE__);
@@ -136,7 +136,7 @@ void base_call(void)
 			return ;
 		}
 
-		ret = write(g_down_fd, g_ph0_base, down_blk_size * down_blks_one_time);
+		ret = Write(g_down_fd, g_ph0_base, down_blk_size * down_blks_one_time);
 		if ((u32)ret != down_blk_size * down_blks_one_time) {
 			fprintf(stderr, "Error at line %d, file %s\n", __LINE__, __FILE__);
 			return ;
@@ -191,8 +191,8 @@ int main(void)
 		return -1;
 	}	
 
-	/*  */
-	Init_print_info(&g_print_info);
+	/* 初始化打印信息 */
+	init_print_info(&g_print_info);
 
 	
 	g_down_fd = g_print_info.down_fd;	
@@ -245,14 +245,13 @@ int main(void)
 	 
 	/* 启动DMA，发送第1块缓存数据。第一次收到DMA中断信号后，暂停发送数据 */
 	memset(&read_info,0,sizeof(read_info));
-	ret = read(g_down_fd, &read_info, sizeof(read_info));
-	printf("first read must not wait\n");
+	ret = Read(g_down_fd, &read_info, sizeof(read_info));
 	if (ret != sizeof(read_info)) {
-		printf("first read error\n");
+		printf("first read in change transfer error\n");
 		return -1;
 	}
 	
-	ret = write(g_down_fd, g_ph0_change, dma_blks_one_time * down_blk_size);
+	ret = Write(g_down_fd, g_ph0_change, dma_blks_one_time * down_blk_size);
 	if (ret != (int)(dma_blks_one_time * down_blk_size)) {
 		printf("first write error\n");
 		return -1;		
@@ -261,7 +260,7 @@ int main(void)
 	g_print_info.starttransfer_down(&g_print_info, dma_blks_one_time);
 	
 	memset(&read_info,0,sizeof(read_info));
-	ret = read(g_down_fd, &read_info, sizeof(read_info));
+	ret = Read(g_down_fd, &read_info, sizeof(read_info));
 	if (ret != sizeof(read_info)) {
 		printf("second read error\n");
 		return -1;
@@ -288,7 +287,7 @@ int main(void)
      * 打印输出寄存器内容,测试结束.
 	 */
 	for (times = 1; times < change_total / (dma_blks_one_time * down_blk_size); times++) {
-		ret = write(g_down_fd, g_ph0_change, dma_blks_one_time * down_blk_size);
+		ret = Write(g_down_fd, g_ph0_change, dma_blks_one_time * down_blk_size);
 		if (ret != (int)(dma_blks_one_time * down_blk_size)) {
 			printf("write error\n");
 			return -1;		
@@ -297,23 +296,20 @@ int main(void)
 		g_print_info.starttransfer_down(&g_print_info, dma_blks_one_time);
 		
 		memset(&read_info,0,sizeof(read_info));
-		ret = read(g_down_fd, &read_info, sizeof(read_info));
-		if (ret != sizeof(read_info)) {
-			printf("get print interrupt or read error\n");
+		ret = Read(g_down_fd, &read_info, sizeof(read_info));
+		if (ret != sizeof(read_info)) 
 			goto finish_print;
-		}	
 
 	}
 
 	/* 等待正常结束打印或者异常结束打印 */
-	ret = read(g_down_fd, &read_info, sizeof(read_info));
+	ret = Read(g_down_fd, &read_info, sizeof(read_info));
 finish_print:	
 	if (ret == HAN_E_PT_FIN) 
-		printf("down read normal stop\n");
-	else if (ret == HAN_E_PT_EXPT) 
-		printf("down read accident stop\n");
+		printf("down read normal stop, ok\n");
 	else 
-		printf("down read wrong,ret value %d\n", ret);	
+		printf("down read stop bad at or before the last time\n");
+
 	 
 
 	/* 
@@ -322,11 +318,10 @@ finish_print:
 	//g_print_info.print_disable(&g_print_info);
 	
 
-	/* 释放数据 */
-	free(g_ph0_base);
+	/* 释放资源 */
+	close_print_info(&g_print_info);
 	free(g_ph0_change);
-
-	Close_print_info(&g_print_info);
+	free(g_ph0_base);
 	
 	return ret;
 }

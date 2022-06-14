@@ -1,19 +1,6 @@
 /*
- * Copyright (C) 2015 Altera Corporation
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 59 Temple
- * Place, Suite 330, Boston, MA 02111-1307 USA
+ * Copyright (C) 2022 Hanglory Ye Zheng
+ * This driver is for arm to fpga data transfer
  */
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -32,6 +19,7 @@
 #include <linux/uaccess.h>
 #include <asm-generic/ioctl.h>
 #include <linux/reset.h>
+#include <linux/poll.h>
 
 
 #include "internel.h"
@@ -40,8 +28,6 @@
 static int normal_stop_irq;
 static int accident_stop_irq;
 static spinlock_t g_irq_lock;
-static wait_queue_head_t g_irq_wait_queue_down;
-static wait_queue_head_t g_irq_wait_queue_up;
 static uint32_t g_irq_count_down;
 static uint32_t g_irq_count_up;
 static struct f2sm_buf_q g_avail_membuf_queue_down; 
@@ -56,61 +42,55 @@ static uint32_t which_interrput_up = NON_STOP;
 static uint32_t print_state_up = UNDONE;
 static uint32_t print_state_down = UNDONE;
 
+static wait_queue_head_t g_irq_wait_queue_down;
+static wait_queue_head_t g_irq_wait_queue_up;
+static wait_queue_head_t g_down_poll_queue;
+static wait_queue_head_t g_up_poll_queue;
+
+
 
 static struct platform_driver the_platform_driver;
 
 static struct f2sm_ram_dev the_f2sm_ram_dev_down = {
-	.open_count = 0,
-	.release_count = 0,
-	.write_count = 0,
-	.write_byte_count = 0,
+	.count = 0,
 	.p_uio_info = NULL,
-	.cur_io_buf_index = -1,
+	.cur_io_buf_index = DOWN_QUEUE_NOT_AVAILABLE,
 	.pdev = NULL,
 };
 static struct f2sm_ram_dev the_f2sm_ram_dev_up = {
-	.open_count = 0,
-	.release_count = 0,
-	.write_count = 0,
-	.write_byte_count = 0,
+	.count = 0,
 	.p_uio_info = NULL,
-	.cur_io_buf_index = -1,
+	.cur_io_buf_index = UP_QUEUE_NOT_AVAILABLE,
 	.pdev = NULL,
 };
 
 static inline void do_nothing(void)
 {
-	return;
+	__asm__ __volatile__("nop");
 }
 
-static inline int InitQueueF2sm(struct f2sm_buf_q *buf) 
+static inline void InitQueueF2sm(struct f2sm_buf_q *queue) 
 {
-	buf->tail = buf->head = 0;
-	memset(buf->mem, 0, sizeof(buf->mem));
-	return 0;
+	queue->size = 1;		
+	queue->tail = queue->head = 0;
 }
 
-static inline int EnQueueF2sm(struct f2sm_buf_q *buf,int mem_index)
+static inline int EnQueueF2sm(struct f2sm_buf_q *queue)
 {
-	if (((buf->tail + 1) & 0x3) == buf->head)  //full
-		return -1;
+	if (((queue->tail + 1) & queue->size) == queue->head)  //full
+		return QUEUE_NOT_AVAILABLE;
 	
-	buf->mem[buf->tail] = mem_index;
-	buf->tail = (buf->tail + 1) & 0x3; //set // %4 equal to &0x3 
-	return 0;
+	queue->tail = (queue->tail + 1) & queue->size; 
+	return QUEUE_AVAILABLE;
 }
 
-static inline int DeQueueF2sm(struct f2sm_buf_q *buf) 
+static inline int DeQueueF2sm(struct f2sm_buf_q *queue) 
 {
-	//若队列不空，则删除Q的对头元素，用e返回其值
-	//若为空，直接返回负一
-	int mem_index = -1;
-	if (buf->tail == buf->head)		//empty
-		return -1;
+	if (queue->tail == queue->head)		//empty
+		return QUEUE_NOT_AVAILABLE;
 	
-	mem_index = buf->mem[buf->head];
-	buf->head = (buf->head + 1) & 0x3;   // %4 equal to &0x3 
-	return mem_index;
+	queue->head = (queue->head + 1) & queue->size;   
+	return QUEUE_AVAILABLE;
 }
 
 static inline uint32_t get_current_irq_count_down(void)
@@ -139,14 +119,12 @@ static inline uint32_t get_current_irq_count_up(void)
 
 static irqreturn_t f2sm_driver_interrupt_handler_down(int irq, void *data)
 {
-	int mem_index = DOWN_QUEUE_NOT_AVAILABLE;
-
 	spin_lock(&g_irq_lock);
-
-	mem_index = DOWN_QUEUE_AVAILABLE;
 	
-	if (EnQueueF2sm(&g_avail_membuf_queue_down, mem_index) < 0)
+	if (EnQueueF2sm(&g_avail_membuf_queue_down) < 0) 
 		pr_info("down irq %d recved but EnQueueF2sm wrong! \n", irq);
+
+	the_f2sm_ram_dev_down.cur_io_buf_index = DOWN_QUEUE_AVAILABLE;
 	
 	g_irq_count_down++;
 	print_state_down = UNDONE;
@@ -154,20 +132,19 @@ static irqreturn_t f2sm_driver_interrupt_handler_down(int irq, void *data)
 	spin_unlock(&g_irq_lock);
 	
 	wake_up_interruptible(&g_irq_wait_queue_down);
+	wake_up_interruptible(&g_down_poll_queue);
 
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t f2sm_driver_interrupt_handler_up(int irq, void *data)
 {
-	int mem_index = UP_QUEUE_NOT_AVAILABLE;
-
 	spin_lock(&g_irq_lock);
 	
-	mem_index = UP_QUEUE_AVAILABLE;	
-	
-	if (EnQueueF2sm(&g_avail_membuf_queue_up, mem_index) < 0)
+	if (EnQueueF2sm(&g_avail_membuf_queue_up) < 0)
 		pr_info("up irq %d recved but EnQueueF2sm wrong! \n", irq);	
+
+	the_f2sm_ram_dev_up.cur_io_buf_index = UP_QUEUE_AVAILABLE;
 	
 	g_irq_count_up++;
 	print_state_up = UNDONE;
@@ -175,6 +152,7 @@ static irqreturn_t f2sm_driver_interrupt_handler_up(int irq, void *data)
 	spin_unlock(&g_irq_lock);	
 	
 	wake_up_interruptible(&g_irq_wait_queue_up);
+	wake_up_interruptible(&g_up_poll_queue);
 	
 	return IRQ_HANDLED;
 }
@@ -195,6 +173,8 @@ static irqreturn_t normal_stop_interrupt_handler(int irq, void *data)
 	/* 唤醒睡眠进程 */
 	wake_up_interruptible(&g_irq_wait_queue_down);
 	wake_up_interruptible(&g_irq_wait_queue_up);
+	wake_up_interruptible(&g_down_poll_queue);
+	wake_up_interruptible(&g_up_poll_queue);
 	
 	return IRQ_HANDLED;
 }
@@ -215,6 +195,8 @@ static irqreturn_t accident_stop_interrupt_handler(int irq, void *data)
 	/* 唤醒睡眠进程 */
 	wake_up_interruptible(&g_irq_wait_queue_down);
 	wake_up_interruptible(&g_irq_wait_queue_up);
+	wake_up_interruptible(&g_down_poll_queue);
+	wake_up_interruptible(&g_up_poll_queue);
 
 	return IRQ_HANDLED;
 }
@@ -231,13 +213,20 @@ down_dev_write(struct file *fp,
 	char *io_buf;
 	int buf_index;
 
-
-	if (down_interruptible(&dev->sem)) {
-		pr_err("down_dev_write sem interrupted exit\n");
-		return -EINTR;
+	/* 如果是非阻塞 */
+	if (fp->f_flags & O_NONBLOCK) {
+		if (down_trylock(&dev->sem)) {
+			pr_err("down_dev_write get sem failed, try again\n");
+			return -EAGAIN;
+		}
+	} else {
+		if (down_interruptible(&dev->sem)) {
+			pr_err("down_dev_write sem interrupted exit\n");
+			return -EINTR;
+		}	
 	}	
 
-	buf_index = dev->cur_io_buf_index;
+	buf_index = the_f2sm_ram_dev_down.cur_io_buf_index;
 	if (buf_index != DOWN_QUEUE_AVAILABLE) {
 		pr_err("down_dev_write buf_index error exit\n");
 		return -ERESTARTSYS;		
@@ -251,8 +240,6 @@ down_dev_write(struct file *fp,
 		pr_err("down_dev_write count too big error exit\n");
 		return -EINVAL;
 	}
-
-	dev->write_count++;
 
 	if (temp_count > 0) {
 		if (copy_from_user
@@ -270,7 +257,7 @@ down_dev_write(struct file *fp,
 		}
 	}
 
-	dev->write_byte_count += temp_count;
+	the_f2sm_ram_dev_down.cur_io_buf_index = DOWN_QUEUE_NOT_AVAILABLE;
 
 	up(&dev->sem);
 	
@@ -294,39 +281,49 @@ up_dev_read(struct file *fp, char __user *user_buffer,
 	int mem_index = UP_QUEUE_NOT_AVAILABLE;
 	unsigned long flags;
 
-
-	if (down_interruptible(&dev->sem)) {
-		pr_err("up_dev_read sem interrupted exit\n");
-		return -EINTR;
-	}	
-
+	/* 如果是非阻塞 */
+	if (fp->f_flags & O_NONBLOCK) {
+		if (down_trylock(&dev->sem)) {
+			pr_err("up_dev_read get sem failed, try again\n");
+			return -EAGAIN;
+		}
+	} else {
+		if (down_interruptible(&dev->sem)) {
+			pr_err("up_dev_read sem interrupted exit\n");
+			return -EINTR;
+		}	
+	}
+	
 	cur_irq_cnt = get_current_irq_count_up();
-
-
 	spin_lock_irqsave(&g_irq_lock, flags);
 	mem_index = DeQueueF2sm(&g_avail_membuf_queue_up);
+	the_f2sm_ram_dev_up.cur_io_buf_index = UP_QUEUE_NOT_AVAILABLE;
 	spin_unlock_irqrestore(&g_irq_lock, flags);	
 	
-	
 	if (mem_index != UP_QUEUE_AVAILABLE) {  //wait for idle mem
-		//这里有漏洞，虽然上行read没发生过，可能中断来的规律比较早或者比较晚
-		//同样将cur_irq_cnt == get_current_irq_count_up()改为mem_index != 0
+		/* 如果是非阻塞 */
+		if (fp->f_flags & O_NONBLOCK) {
+			if (which_interrput_up == NON_STOP) {
+				up(&dev->sem);
+				pr_err("up_dev_read get dma buffer failed, try again\n");
+				return -EAGAIN;				
+			}
+		}			
+		
 		while (mem_index != UP_QUEUE_AVAILABLE && which_interrput_up == NON_STOP) {
 			up(&dev->sem);	
-			
 			if (wait_event_interruptible(g_irq_wait_queue_up,
-							(cur_irq_cnt != get_current_irq_count_up()) || 
-							(which_interrput_up != NON_STOP) 
-							)) {
+					(cur_irq_cnt != get_current_irq_count_up()) || 
+					(which_interrput_up != NON_STOP) )) {
 				pr_err("up_dev_read wait interrupted exit\n");
 				return -EINTR;
 			}
-
 			/* 几种情况：
              * 1.单独dma中断 2.dma后跟打印中断 3.单独打印中断                 4.打印中断后跟dma中断
 			 */
 			spin_lock_irqsave(&g_irq_lock, flags);			
 			mem_index = DeQueueF2sm(&g_avail_membuf_queue_up);
+			the_f2sm_ram_dev_up.cur_io_buf_index = UP_QUEUE_NOT_AVAILABLE;
 			spin_unlock_irqrestore(&g_irq_lock, flags);
 
 			if (down_interruptible(&dev->sem)) {
@@ -336,6 +333,7 @@ up_dev_read(struct file *fp, char __user *user_buffer,
 		}
 	}
 
+	/* 程序到这里说明有四种情况 */
 	/* situation 1 */
 	spin_lock_irqsave(&g_irq_lock, flags);
 	if (mem_index == UP_QUEUE_AVAILABLE && which_interrput_up == NON_STOP && print_state_up == UNDONE) {
@@ -377,7 +375,6 @@ up_dev_read(struct file *fp, char __user *user_buffer,
 
 ret_to_user_with_dma_interrupt:
 ret_to_user_with_print_interrupt_after_dma_interrupt:
-	the_f2sm_ram_dev_up.cur_io_buf_index = mem_index;
 	the_size = dev->p_uio_info->mem[UP_MEM_INDEX].size;		
 	if (count > the_size) {   
 		cur_count = the_size;		
@@ -436,8 +433,8 @@ ret_to_user_with_dma_interrupt_after_print_interrupt:
 }		  
 
 
-/* 下行read 
- * 
+/* 
+ * 下行read 
  */
 static ssize_t
 down_dev_read(struct file *fp, char __user *user_buffer,
@@ -449,14 +446,20 @@ down_dev_read(struct file *fp, char __user *user_buffer,
 	int mem_index;
 	unsigned long flags;
 
-	if (down_interruptible(&dev->sem)) {
-	  pr_err("down_dev_read sem interrupted exit\n");
-	  return -EINTR;
-	}	
+	/* 如果是非阻塞 */
+	if (fp->f_flags & O_NONBLOCK) {
+		if (down_trylock(&dev->sem)) {
+			pr_err("down_dev_read get sem failed, try again\n");
+			return -EAGAIN;
+		}
+	} else {
+		if (down_interruptible(&dev->sem)) {
+		  	pr_err("down_dev_read sem interrupted exit\n");
+		  	return -EINTR;
+		}	
+	}
 	
 	cur_irq_cnt = get_current_irq_count_down();
-
-	
 	if (count != sizeof(struct f2sm_read_info_t)) {  
 		up(&dev->sem);
 		pr_err("down_dev_read count != 8 exit\n");
@@ -467,7 +470,16 @@ down_dev_read(struct file *fp, char __user *user_buffer,
 	mem_index = DeQueueF2sm(&g_avail_membuf_queue_down);
 	spin_unlock_irqrestore(&g_irq_lock, flags);
 	
-	if (mem_index != DOWN_QUEUE_AVAILABLE) {  //wait for idle mem		
+	if (mem_index != DOWN_QUEUE_AVAILABLE) {  //wait for idle mem
+		/* 如果是非阻塞 */
+		if (fp->f_flags & O_NONBLOCK) {
+			if (which_interrput_down == NON_STOP) {
+				up(&dev->sem);
+				pr_err("down_dev_read get dma buffer failed, try again\n");
+				return -EAGAIN;				
+			}
+		}	
+		
 		//fuck!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//因为在上面的mem_index = DeQueueF2sm(&g_avail_membuf_queue_down);之前没中断，
 		//然后mem_index = -1，进入while之前来了中断，此时mem_index还是-1,但是cur_irq_cnt已经不等于
@@ -477,9 +489,8 @@ down_dev_read(struct file *fp, char __user *user_buffer,
 			up(&dev->sem);	
 			
 			if (wait_event_interruptible(g_irq_wait_queue_down,
-							(cur_irq_cnt != get_current_irq_count_down()) || 
-							(which_interrput_down != NON_STOP) 
-							)) {
+					(cur_irq_cnt != get_current_irq_count_down()) || 
+					(which_interrput_down != NON_STOP) )) {
 				pr_err("down_dev_read wait interrupted exit\n");
 				return -EINTR;
 			}
@@ -540,7 +551,6 @@ down_dev_read(struct file *fp, char __user *user_buffer,
 ret_to_user_with_dma_interrupt:
 ret_to_user_with_print_interrupt_after_dma_interrupt:
 	cur_irq_cnt = get_current_irq_count_down();
-	the_f2sm_ram_dev_down.cur_io_buf_index = mem_index;
 	cur_read_info.irq_count = cur_irq_cnt;
 	cur_read_info.mem_index = mem_index;
 
@@ -592,24 +602,36 @@ static int up_dev_open(struct inode *ip, struct file *fp)
 {
 	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_up;
 
-	if (down_interruptible(&dev->sem)) {
-		pr_info("up_dev_open sem interrupted exit\n");
-		return -EINTR;
+	/* 如果是非阻塞 */
+	if (fp->f_flags & O_NONBLOCK) {
+		if (down_trylock(&dev->sem)) {
+			pr_err("up_dev_open get sem failed, try again\n");
+			return -EAGAIN;
+		}
+	} else {
+		if (down_interruptible(&dev->sem)) {
+			pr_info("up_dev_open sem interrupted exit\n");
+			return -EINTR;
+		}
 	}
 
 	fp->private_data = dev;		//设置为设备文件/dev/up_dev的私有数据
-	dev->open_count++;
+	
+	if (!dev->count) {
+		/* 初始化没有可用的，因此要先transfer来个中断才会read到一个 */
+		InitQueueF2sm(&g_avail_membuf_queue_up);
+		
+		the_f2sm_ram_dev_up.cur_io_buf_index = UP_QUEUE_NOT_AVAILABLE;
+		which_interrput_up = NON_STOP;
+		print_state_up = UNDONE;
 
-	/* 初始化没有可用的，因此要先transfer来个中断才会read到一个 */
-	InitQueueF2sm(&g_avail_membuf_queue_up);
-	the_f2sm_ram_dev_up.cur_io_buf_index = UP_QUEUE_NOT_AVAILABLE;
-
-	which_interrput_up = NON_STOP;
-	print_state_up = UNDONE;
+	}
+	
+	dev->count++;
 
 	up(&dev->sem);
 	
-	return 0;
+	return 0;		//这个值不会直接返回给用户,会经过内核返回文件描述符给用户
 }
 
 
@@ -618,25 +640,36 @@ static int down_dev_open(struct inode *ip, struct file *fp)
 {
 	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_down;
 
-	if (down_interruptible(&dev->sem)) {
-		pr_info("down_dev_open sem interrupted exit\n");
-		return -EINTR;
+	/* 如果是非阻塞 */
+	if (fp->f_flags & O_NONBLOCK) {
+		if (down_trylock(&dev->sem)) {
+			pr_err("down_dev_open get sem failed, try again\n");
+			return -EAGAIN;
+		}
+	} else {
+		if (down_interruptible(&dev->sem)) {
+			pr_info("down_dev_open sem interrupted exit\n");
+			return -EINTR;
+		}
 	}
 
 	fp->private_data = dev;		//设置为设备文件/dev/down_dev的私有数据
-	dev->open_count++;
 
-	/* 初始化就有一个，因此一开始直接读就一定会有一个 */
-	InitQueueF2sm(&g_avail_membuf_queue_down);
-	EnQueueF2sm(&g_avail_membuf_queue_down, DOWN_QUEUE_AVAILABLE);	
-	the_f2sm_ram_dev_down.cur_io_buf_index = DOWN_QUEUE_AVAILABLE;
+	if (!dev->count) {
+		/* 初始化就有一个，因此一开始直接读就一定会有一个 */
+		InitQueueF2sm(&g_avail_membuf_queue_down);
+		EnQueueF2sm(&g_avail_membuf_queue_down);	
+	
+		the_f2sm_ram_dev_down.cur_io_buf_index = DOWN_QUEUE_AVAILABLE;
+		which_interrput_down = NON_STOP;
+		print_state_down = UNDONE;
+	}
 
-	which_interrput_down = NON_STOP;
-	print_state_down = UNDONE;
+	dev->count++;
 
 	up(&dev->sem);
 	
-	return 0;
+	return 0;	//这个值不会直接返回给用户,会经过内核返回文件描述符给用户
 }
 
 
@@ -645,35 +678,55 @@ static int up_dev_release(struct inode *ip, struct file *fp)
 {
 	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_up;
 
-	if (down_interruptible(&dev->sem)) {
-		pr_info("up_dev_release sem interrupted exit\n");
-		return -EINTR;
+	/* 如果是非阻塞 */
+	if (fp->f_flags & O_NONBLOCK) {
+		if (down_trylock(&dev->sem)) {
+			pr_err("up_dev_release get sem failed, try again\n");
+			return -EAGAIN;
+		}
+	} else {
+		if (down_interruptible(&dev->sem)) {
+			pr_info("up_dev_release sem interrupted exit\n");
+			return -EINTR;
+		}
 	}
 
-	dev->release_count++;
-
-	InitQueueF2sm(&g_avail_membuf_queue_up); 
-	the_f2sm_ram_dev_up.cur_io_buf_index = UP_QUEUE_NOT_AVAILABLE;
-
+	dev->count--;
+	
+	if (!dev->count) {
+		InitQueueF2sm(&g_avail_membuf_queue_up); 
+		the_f2sm_ram_dev_up.cur_io_buf_index = UP_QUEUE_NOT_AVAILABLE;
+	}
+	
 	up(&dev->sem);
 	
-	return 0;
+	return 0;		
 }
 
 static int down_dev_release(struct inode *ip, struct file *fp)
 {
 	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_down;
 
-	if (down_interruptible(&dev->sem)) {
-		pr_info("down_dev_release sem interrupted exit\n");
-		return -EINTR;
+	/* 如果是非阻塞 */
+	if (fp->f_flags & O_NONBLOCK) {
+		if (down_trylock(&dev->sem)) {
+			pr_err("down_dev_release get sem failed, try again\n");
+			return -EAGAIN;
+		}
+	} else {
+		if (down_interruptible(&dev->sem)) {
+			pr_info("down_dev_release sem interrupted exit\n");
+			return -EINTR;
+		}
 	}
-
-	dev->release_count++;
-
-	InitQueueF2sm(&g_avail_membuf_queue_down); 
-	the_f2sm_ram_dev_down.cur_io_buf_index = DOWN_QUEUE_NOT_AVAILABLE;
-
+	
+	dev->count--;
+	
+	if (!dev->count) {
+		InitQueueF2sm(&g_avail_membuf_queue_down); 
+		the_f2sm_ram_dev_down.cur_io_buf_index = DOWN_QUEUE_NOT_AVAILABLE;
+	}
+	
 	up(&dev->sem);
 	
 	return 0;
@@ -681,7 +734,7 @@ static int down_dev_release(struct inode *ip, struct file *fp)
 
 
 /* 用户读取寄存器 */
-static long up_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long up_dev_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 {
 	long ret = 0;
 	
@@ -689,14 +742,21 @@ static long up_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	struct platform_device *pdev;
 
 	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_up;
-	if (down_interruptible(&dev->sem)) {
-		pr_info("up_dev_ioctl sem interrupted exit\n");
-		return -EINTR;
+
+	/* 如果是非阻塞 */
+	if (fp->f_flags & O_NONBLOCK) {
+		if (down_trylock(&dev->sem)) {
+			pr_err("up_dev_ioctl get sem failed, try again\n");
+			return -EAGAIN;
+		}
+	} else {	
+		if (down_interruptible(&dev->sem)) {
+			pr_info("up_dev_ioctl sem interrupted exit\n");
+			return -EINTR;
+		}
 	}
 
-
 	switch (cmd) {
-
 
 	case IOC_CMD_RESET:
 		pdev = the_f2sm_ram_dev_up.pdev;
@@ -707,6 +767,7 @@ static long up_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -ERESTARTSYS;
         }	
 		break;
+		
 	default:
 		pr_err("unsupported up ioctl cmd 0x%x!\n", cmd);
 		up(&dev->sem);
@@ -718,39 +779,46 @@ static long up_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 }
 
 /* 用户设置寄存器 */
-static long down_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long down_dev_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 {
 	long ret = 0;
-	void __iomem *reg_addr;
-	
+	void __iomem *reg_addr = NULL;
 	user_info_t user_info;
-	unsigned long reg_offset;
-	unsigned long size;
-	void __user * user_addr;
-
-	struct platform_device *pdev;
-
-	unsigned long *dma_info;
-	
+	unsigned long reg_offset = 0;
+	unsigned long size = 0;
+	void __user * user_addr = NULL;
+	struct platform_device *pdev = NULL;
+	unsigned long *dma_info = NULL;
 	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_down;
-	if (down_interruptible(&dev->sem)) {
-		pr_info("down_dev_ioctl sem interrupted exit\n");
-		return -EINTR;
+
+	/* 如果是非阻塞 */
+	if (fp->f_flags & O_NONBLOCK) {
+		if (down_trylock(&dev->sem)) {
+			pr_err("up_dev_ioctl get sem failed, try again\n");
+			return -EAGAIN;
+		}
+	} else {	
+		if (down_interruptible(&dev->sem)) {
+			pr_info("down_dev_ioctl sem interrupted exit\n");
+			return -EINTR;
+		}
 	}
 
-	/* 提取用户信息,arg是一个指向user_info_t的指针 */
-	ret = copy_from_user(&user_info, (void __user*)arg, sizeof(user_info_t));
-	if (ret) {
-		pr_err("down_dev_ioctl Copy user arg failed!\n");
-		up(&dev->sem);
-		return -ENOMEM;
+	/* 获取用户参数 */
+	if (arg) {
+		ret = copy_from_user(&user_info, (void __user*)arg, sizeof(user_info_t));
+		if (ret) {
+			pr_err("down_dev_ioctl Copy user arg failed!\n");
+			up(&dev->sem);
+			return -ENOMEM;
+		}
+		reg_offset = user_info.offset;	//寄存器号
+		size = user_info.size;			//需要读写的寄存器内容字节数
+		user_addr = user_info.addr; 	//需要将寄存器内容写入或读出的用户地址			
 	}
-	reg_offset = user_info.offset;	//寄存器号
-	size = user_info.size;			//需要读写的寄存器内容字节数
-	user_addr = user_info.addr;		//需要将寄存器内容写入或读出的用户地址
 
 	switch (cmd) {
-		
+#if 0		
 	case IOC_CMD_NONE:
 		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, reg_offset);
 		switch (reg_offset) {
@@ -764,8 +832,8 @@ static long down_dev_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			break;
 		}
 		break;
-		
-	case IOC_CMD_READ:
+#endif		
+	case IOC_CMD_READ:	
 		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, reg_offset);
 		ret = copy_to_user(user_addr, reg_addr, size);
 		if (ret) {
@@ -775,7 +843,7 @@ static long down_dev_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		}		
 		break;
 		
-	case IOC_CMD_WRITE:
+	case IOC_CMD_WRITE:	
 		reg_addr = __IO_CALC_ADDRESS_NATIVE(g_ioremap_addr_f2h, reg_offset);
 		ret = copy_from_user(reg_addr, user_addr, size);
 		if (ret) {
@@ -795,7 +863,7 @@ static long down_dev_ioctl(struct file *file, unsigned int cmd, unsigned long ar
         }		
 		break;
 
-	case IOC_CMD_PH_DMA:
+	case IOC_CMD_PH_DMA:		
 		size = 4 * sizeof(unsigned long);
 		dma_info = (unsigned long*)kzalloc(size, GFP_KERNEL);
 		dma_info[0] = MEM_PHY_UP;
@@ -812,6 +880,19 @@ static long down_dev_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		kfree(dma_info);
 		break;		
 		
+	case IOC_CMD_STOP:
+		spin_lock(&g_irq_lock);
+		which_interrput_down = NORMAL_STOP;
+		which_interrput_up = NORMAL_STOP;
+		print_state_up = DONE;
+		print_state_down = DONE;
+		spin_unlock(&g_irq_lock);
+		wake_up_interruptible(&g_irq_wait_queue_down);
+		wake_up_interruptible(&g_irq_wait_queue_up);
+		wake_up_interruptible(&g_down_poll_queue);
+		wake_up_interruptible(&g_up_poll_queue);
+		break;
+		
 	default:
 		pr_err("unsupported down ioctl cmd 0x%x!\n", cmd);
 		up(&dev->sem);
@@ -822,6 +903,45 @@ static long down_dev_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	return ret;
 }
 
+static __poll_t up_dev_poll(struct file *fp, struct poll_table_struct *wait)
+{
+	__poll_t mask = 0;
+	int mem_index;
+	unsigned long flags;
+
+	poll_wait(fp, &g_up_poll_queue, wait);
+
+	/* 如果有数据返回数据可用状态 */
+	spin_lock_irqsave(&g_irq_lock, flags);
+	
+	mem_index = the_f2sm_ram_dev_up.cur_io_buf_index;
+	if (mem_index == UP_QUEUE_AVAILABLE)
+		mask |= POLLIN;
+
+	spin_unlock_irqrestore(&g_irq_lock, flags);
+	
+	return mask;
+}
+
+static __poll_t down_dev_poll(struct file *fp, struct poll_table_struct *wait)
+{
+	__poll_t mask = 0;
+	int mem_index;
+	unsigned long flags;
+
+	poll_wait(fp, &g_down_poll_queue, wait);
+
+	/* 如果有数据返回数据可用状态 */
+	spin_lock_irqsave(&g_irq_lock, flags);
+	
+	mem_index = the_f2sm_ram_dev_down.cur_io_buf_index;
+	if (mem_index == DOWN_QUEUE_AVAILABLE)
+		mask |= POLLIN;
+
+	spin_unlock_irqrestore(&g_irq_lock, flags);
+	
+	return mask;
+}
 
 
 static const struct file_operations up_dev_fops = {
@@ -830,6 +950,7 @@ static const struct file_operations up_dev_fops = {
 	.release = up_dev_release,
 	.read = up_dev_read,
 	.unlocked_ioctl = up_dev_ioctl,
+	.poll = up_dev_poll,
 };
 
 static struct miscdevice up_dev_device = {
@@ -845,6 +966,7 @@ static const struct file_operations down_dev_fops = {
 	.write = down_dev_write,
 	.read = down_dev_read,
 	.unlocked_ioctl = down_dev_ioctl,
+	.poll = down_dev_poll,
 };
 
 static struct miscdevice down_dev_device = {
@@ -890,7 +1012,7 @@ static int platform_probe(struct platform_device *pdev)
 	irq = platform_get_irq(pdev, 0);            
 	if (irq < 0) 
 	{
-		dev_err(&pdev->dev, "irq0 not available\n");
+		dev_err(&pdev->dev, "irq0(down) not available\n");
 		goto bad_exit_release_dev_data;
 	}
 	priv->mem0_irq = irq;
@@ -899,7 +1021,7 @@ static int platform_probe(struct platform_device *pdev)
 	irq = platform_get_irq(pdev, 1); 
 	if (irq < 0) 
 	{
-		dev_err(&pdev->dev, "irq1 not available\n");
+		dev_err(&pdev->dev, "irq1(up) not available\n");
 		goto bad_exit_release_dev_data;
 	}
 	priv->mem1_irq = irq;	
@@ -908,13 +1030,13 @@ static int platform_probe(struct platform_device *pdev)
 	normal_stop_irq = platform_get_irq(pdev, 2);            
 	if (normal_stop_irq < 0) 
 	{
-		dev_err(&pdev->dev, "irq4 not available\n");
+		dev_err(&pdev->dev, "irq4(normal) not available\n");
 		goto bad_exit_release_dev_data;
 	}
 	accident_stop_irq = platform_get_irq(pdev, 3);            
 	if (accident_stop_irq < 0) 
 	{
-		dev_err(&pdev->dev, "irq5 not available\n");
+		dev_err(&pdev->dev, "irq5(accident) not available\n");
 		goto bad_exit_release_dev_data;
 	}	
  
@@ -992,6 +1114,8 @@ static int platform_probe(struct platform_device *pdev)
 	/* register our interrupt handler */
 	init_waitqueue_head(&g_irq_wait_queue_down);
 	init_waitqueue_head(&g_irq_wait_queue_up);
+	init_waitqueue_head(&g_down_poll_queue);
+	init_waitqueue_head(&g_up_poll_queue);	
 	spin_lock_init(&g_irq_lock);
 
 	g_irq_count_down = 0;
@@ -1001,10 +1125,10 @@ static int platform_probe(struct platform_device *pdev)
 	ret_val = request_irq(priv->mem0_irq,
 			      f2sm_driver_interrupt_handler_down,
 			      0,
-			      "fpga-read-irq",
+			      "down-irq",
 			      priv);
 	if (ret_val) {
-		pr_err("request irq0 failed");
+		pr_err("request irq0(down) failed");
 		goto bad_exit_iounmap;
 	}
 
@@ -1012,10 +1136,10 @@ static int platform_probe(struct platform_device *pdev)
 	ret_val = request_irq(priv->mem1_irq,
 				  f2sm_driver_interrupt_handler_up,
 				  0,
-				  "fpga-write-irq",
+				  "up-irq",
 				  priv);
 	if (ret_val) {
-		pr_err("request irq1 failed");
+		pr_err("request irq1(up) failed");
 		goto bad_exit_freeirq0;
 	}
 
@@ -1023,20 +1147,20 @@ static int platform_probe(struct platform_device *pdev)
 	ret_val = request_irq(normal_stop_irq,
 			      normal_stop_interrupt_handler,
 			      0,
-			      "yxm-irq4",
+			      "normal-stop-irq",
 			      NULL);
 	if (ret_val) {
-		pr_err("request irq4 failed");
+		pr_err("request irq4(normal) failed");
 		goto bad_exit_freeirq0_1;
 	}	
 
 	ret_val = request_irq(accident_stop_irq,
 			      accident_stop_interrupt_handler,
 			      0,
-			      "yxm-irq5",
+			      "accident-stop-irq",
 			      NULL);
 	if (ret_val) {
-		pr_err("request irq5 failed");
+		pr_err("request irq5(accident) failed");
 		goto bad_exit_freeirq0_1_4;
 	}	
 
@@ -1140,7 +1264,6 @@ static int platform_remove(struct platform_device *pdev)
     }
 
 
-	//release_mem_region(g_f2sm_driver_base_addr, g_f2sm_driver_size);
 	if(priv->the_uio_info.mem[0].internal_addr)
 	{
 		priv->the_uio_info.mem[0].internal_addr = NULL;
@@ -1210,6 +1333,6 @@ module_init(print_init);
 module_exit(print_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Driver Student One <dso@company.com>");
-MODULE_DESCRIPTION("Demonstration Module 5 - reserve memory and enable IRQ");
+MODULE_AUTHOR("Yeshen");
+MODULE_DESCRIPTION("Hanglory 3.0 arm-fpga data transfer driver");
 
