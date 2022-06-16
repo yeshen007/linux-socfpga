@@ -4561,20 +4561,22 @@ int stmmac_dvr_probe(struct device *device,
 	u32 queue, rxq, maxq;
 	int i, ret = 0;
 
+	//分配net_device和私有数据struct stmmac_priv的空间
 	ndev = devm_alloc_etherdev_mqs(device, sizeof(struct stmmac_priv),
 				       MTL_MAX_TX_QUEUES, MTL_MAX_RX_QUEUES);
 	if (!ndev)
 		return -ENOMEM;
 
-	SET_NETDEV_DEV(ndev, device);
+	SET_NETDEV_DEV(ndev, device);	//设置ndev->dev.parent = device
 
 	priv = netdev_priv(ndev);
-	priv->device = device;
-	priv->dev = ndev;
+	priv->device = device;	//
+	priv->dev = ndev;		//
 
-	stmmac_set_ethtool_ops(ndev);
+	//设置ndev->ethtool_ops = &stmmac_ethtool_ops
+	stmmac_set_ethtool_ops(ndev);	
 	priv->pause = pause;
-	priv->plat = plat_dat;
+	priv->plat = plat_dat;		//设置net_device私有数据结构plat成员
 	priv->ioaddr = res->addr;
 	priv->dev->base_addr = (unsigned long)res->addr;
 
@@ -4585,7 +4587,7 @@ int stmmac_dvr_probe(struct device *device,
 	if (!IS_ERR_OR_NULL(res->mac))
 		memcpy(priv->dev->dev_addr, res->mac, ETH_ALEN);
 
-	dev_set_drvdata(device, priv->dev);
+	dev_set_drvdata(device, priv->dev);		//设置device->driver_data = ndev
 
 	/* Verify driver arguments */
 	stmmac_verify_args();
@@ -4623,10 +4625,10 @@ int stmmac_dvr_probe(struct device *device,
 	stmmac_check_ether_addr(priv);
 
 	/* Configure real RX and TX queues */
-	netif_set_real_num_rx_queues(ndev, priv->plat->rx_queues_to_use);
+	netif_set_real_num_rx_queues(ndev, priv->plat->rx_queues_to_use);	//
 	netif_set_real_num_tx_queues(ndev, priv->plat->tx_queues_to_use);
 
-	ndev->netdev_ops = &stmmac_netdev_ops;
+	ndev->netdev_ops = &stmmac_netdev_ops;		//
 
 	ndev->hw_features = NETIF_F_SG | NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM |
 			    NETIF_F_RXCSUM;
@@ -4762,7 +4764,7 @@ int stmmac_dvr_probe(struct device *device,
 	    priv->hw->pcs != STMMAC_PCS_TBI &&
 	    priv->hw->pcs != STMMAC_PCS_RTBI) {
 		/* MDIO bus Registration */
-		ret = stmmac_mdio_register(ndev);
+		ret = stmmac_mdio_register(ndev);		/* 重点 */
 		if (ret < 0) {
 			dev_err(priv->device,
 				"%s: MDIO bus (id: %d) registration failed",
@@ -4771,13 +4773,15 @@ int stmmac_dvr_probe(struct device *device,
 		}
 	}
 
-	ret = stmmac_phy_setup(priv);
+	//硬件设置
+	ret = stmmac_phy_setup(priv);	
 	if (ret) {
 		netdev_err(ndev, "failed to setup phy (%d)\n", ret);
 		goto error_phy_setup;
 	}
 
-	ret = register_netdev(ndev);
+	//
+	ret = register_netdev(ndev);	/* */
 	if (ret) {
 		dev_err(priv->device, "%s: ERROR %i registering the device\n",
 			__func__, ret);

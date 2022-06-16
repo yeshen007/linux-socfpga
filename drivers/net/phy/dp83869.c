@@ -19,8 +19,8 @@
 
 
 
-#define DP83869_PHY_ID		0x2000a0f1
-#define DP83869_DEVADDR		0x0A
+#define DP83869_PHY_ID		0x2000a0f1		//
+#define DP83869_DEVADDR		0x0A			//
 
 #define MII_DP83869_PHYCTRL	0x10
 #define MII_DP83869_MICR	0x12

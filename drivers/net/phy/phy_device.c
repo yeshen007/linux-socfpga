@@ -2519,7 +2519,7 @@ int phy_driver_register(struct phy_driver *new_driver, struct module *owner)
 	new_driver->mdiodrv.flags |= MDIO_DEVICE_IS_PHY;
 	new_driver->mdiodrv.driver.name = new_driver->name;
 	new_driver->mdiodrv.driver.bus = &mdio_bus_type;
-	new_driver->mdiodrv.driver.probe = phy_probe;
+	new_driver->mdiodrv.driver.probe = phy_probe;		//
 	new_driver->mdiodrv.driver.remove = phy_remove;
 	new_driver->mdiodrv.driver.owner = owner;
 
@@ -2585,7 +2585,8 @@ static int __init phy_init(void)
 {
 	int rc;
 
-	rc = mdio_bus_init();
+	/* 注册mdio总线 */
+	rc = mdio_bus_init();	
 	if (rc)
 		return rc;
 
@@ -2595,6 +2596,7 @@ static int __init phy_init(void)
 	if (rc)
 		goto err_c45;
 
+	/* 将genphy_driver注册到mdio总线,probe在里面设置为phy_probe */
 	rc = phy_driver_register(&genphy_driver, THIS_MODULE);
 	if (rc) {
 		phy_driver_unregister(&genphy_c45_driver);

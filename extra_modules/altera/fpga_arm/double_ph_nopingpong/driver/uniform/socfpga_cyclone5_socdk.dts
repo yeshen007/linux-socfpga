@@ -114,8 +114,9 @@
 		};
 	};	
 
+/*
 	gpios {
-        compatible = "altr,pio-1.0";	//gpio-altera.c
+        compatible = "altr,pio-1.0";	//gpio-altera.txt gpio-altera.c
         gpio35 {
             label = "LOCK_CHIP_EN";
             gpios = <&portb 6 1>;
@@ -161,7 +162,7 @@
     		gpios = <&portc 3 1>;    
     	};
 	};	
-
+*/
 	regulator_3_3v: 3-3-v-regulator {
 		compatible = "regulator-fixed";
 		regulator-name = "3.3V";
@@ -170,41 +171,44 @@
 	};
 };
 
-
-&gmac0 {
+/* 光口 */
+&gmac0 {		//socfpga-dwmac.txt  snps,dwmac.yaml  ti,dp83869.yaml dp83869.c
     status = "okay";
     phy-mode = "rgmii";
-	snps,phy-addr = <10>;
+	snps,phy-addr = <10>;	
 	mdio0 {
-        compatible = "snps,dwmac-mdio";		//
+        compatible = "snps,dwmac-mdio";		
         #address-cells = <1>;
         #size-cells = <0>;
+		/* dp83869hw */
         phy0: ethernet-phy@0 {
-        	compatible = "ethernet-phy-id2000.a0f1";	//
+        	compatible = "ethernet-phy-id2000.a0f1";	
+        	reg = <10>;
 			ti,op-mode = <DP83869_RGMII_1000_BASE>;
 			rx-fifo-depth = <DP83869_PHYCR_FIFO_DEPTH_4_B_NIB>;
-			reg = <10>;
 			tx-fifo-depth = <DP83869_PHYCR_FIFO_DEPTH_4_B_NIB>;
             ti,clk-output-sel = <DP83869_CLK_O_SEL_REF_CLK>;
         };
 	};
 };
 
+/* 电口 */
 &gmac1 {
 	status = "okay";
 	phy-mode = "rgmii";
-	snps,phy-addr = <10>;
+	snps,phy-addr = <10>;		
 	mdio1 {
         compatible = "snps,dwmac-mdio";
         #address-cells = <1>;
         #size-cells = <0>;
+		/* dp83869hw */
         phy1: ethernet-phy@1 {
             compatible = "ethernet-phy-id2000.a0f1";
-			ti,op-mode = <0>;
+			reg = <10>;			
+			ti,op-mode = <0>;	
+			ti,max-output-impedance = "true";
 			rx-fifo-depth = <DP83869_PHYCR_FIFO_DEPTH_4_B_NIB>;
 			tx-fifo-depth = <DP83869_PHYCR_FIFO_DEPTH_4_B_NIB>;
-            reg = <10>;
-			ti,max-output-impedance = "true";
             ti,clk-output-sel = <DP83869_CLK_O_SEL_REF_CLK>;
         };
 	};
@@ -244,6 +248,12 @@
 		compatible = "nxp,pca9535";
 		reg = <0x21>;
 		gpio-controller;
+
+		#gpio-cells = <2>;
+		gpio-line-names =
+			"gpio1", "gpio2", "gpio3", "gpio4", "gpio5", "gpio6", "gpio7", "gpio8",
+			"gpio9", "gpio10", "gpio11", "gpio12", "gpio13", "gpio14", "gpio15", "gpio16";
+
 	};
 };
 

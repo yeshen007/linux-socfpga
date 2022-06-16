@@ -373,26 +373,29 @@ static int socfpga_gen10_set_phy_mode(struct socfpga_dwmac *dwmac)
 
 static int socfpga_dwmac_probe(struct platform_device *pdev)
 {
-	struct plat_stmmacenet_data *plat_dat;
-	struct stmmac_resources stmmac_res;
-	struct device		*dev = &pdev->dev;
-	int			ret;
-	struct socfpga_dwmac	*dwmac;
-	struct net_device	*ndev;
-	struct stmmac_priv	*stpriv;
+	int ret;
+	struct plat_stmmacenet_data *plat_dat;		//
+	struct stmmac_resources stmmac_res;			//
+	struct device *dev = &pdev->dev;
+	struct socfpga_dwmac *dwmac;				//
+	struct net_device *ndev;
+	struct stmmac_priv *stpriv;					//
 	const struct socfpga_dwmac_ops *ops;
 
+	//设置ops = &socfpga_gen5_ops
 	ops = device_get_match_data(&pdev->dev);
 	if (!ops) {
 		dev_err(&pdev->dev, "no of match data provided\n");
 		return -EINVAL;
 	}
 
-	ret = stmmac_get_platform_resources(pdev, &stmmac_res);
+	//从设备树获取macirq对应的虚拟中断号和reg对应的虚拟地址
+	ret = stmmac_get_platform_resources(pdev, &stmmac_res);	
 	if (ret)
 		return ret;
 
-	plat_dat = stmmac_probe_config_dt(pdev, &stmmac_res.mac);		//
+	//从设备树获取mac地址填充到stmmac_res.mac和其他设备树信息填充到plat_dat
+	plat_dat = stmmac_probe_config_dt(pdev, &stmmac_res.mac);	/* */
 	if (IS_ERR(plat_dat))
 		return PTR_ERR(plat_dat);
 
@@ -411,6 +414,7 @@ static int socfpga_dwmac_probe(struct platform_device *pdev)
 
 	reset_control_deassert(dwmac->stmmac_ocp_rst);
 
+	//获取mac寄存器信息
 	ret = socfpga_dwmac_parse_data(dwmac, dev);
 	if (ret) {
 		dev_err(dev, "Unable to parse OF data\n");
@@ -419,14 +423,15 @@ static int socfpga_dwmac_probe(struct platform_device *pdev)
 
 	dwmac->ops = ops;
 	plat_dat->bsp_priv = dwmac;
-	plat_dat->fix_mac_speed = socfpga_dwmac_fix_mac_speed;
+	plat_dat->fix_mac_speed = socfpga_dwmac_fix_mac_speed;		//
 
-	ret = stmmac_dvr_probe(&pdev->dev, plat_dat, &stmmac_res);
+	//分配net_device设置到pdev->pdev->dev->driver_data
+	ret = stmmac_dvr_probe(&pdev->dev, plat_dat, &stmmac_res);	/* 重点 */
 	if (ret)
 		goto err_remove_config_dt;
 
-	ndev = platform_get_drvdata(pdev);
-	stpriv = netdev_priv(ndev);
+	ndev = platform_get_drvdata(pdev);	//
+	stpriv = netdev_priv(ndev);		//
 
 	/* The socfpga driver needs to control the stmmac reset to set the phy
 	 * mode. Create a copy of the core reset handle so it can be used by
@@ -434,7 +439,7 @@ static int socfpga_dwmac_probe(struct platform_device *pdev)
 	 */
 	dwmac->stmmac_rst = stpriv->plat->stmmac_rst;
 
-	ret = ops->set_phy_mode(dwmac);
+	ret = ops->set_phy_mode(dwmac);		//硬件设置
 	if (ret)
 		goto err_dvr_remove;
 

@@ -331,7 +331,7 @@ static int altera_uart_startup(struct uart_port *port)
 		mod_timer(&pp->tmr, jiffies + uart_poll_timeout(port));
 	} else {
 		int ret;
-
+		//注册中断
 		ret = request_irq(port->irq, altera_uart_interrupt, 0,
 				DRV_NAME, port);
 		if (ret) {

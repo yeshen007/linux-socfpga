@@ -222,7 +222,7 @@ int of_mdiobus_register(struct mii_bus *mdio, struct device_node *np)
 	of_property_read_u32(np, "reset-delay-us", &mdio->reset_delay_us);
 
 	/* Register the MDIO bus */
-	rc = mdiobus_register(mdio);
+	rc = mdiobus_register(mdio);		/* 重点 */
 	if (rc)
 		return rc;
 
@@ -235,7 +235,7 @@ int of_mdiobus_register(struct mii_bus *mdio, struct device_node *np)
 		}
 
 		if (of_mdiobus_child_is_phy(child))
-			rc = of_mdiobus_register_phy(mdio, child, addr);
+			rc = of_mdiobus_register_phy(mdio, child, addr);	
 		else
 			rc = of_mdiobus_register_device(mdio, child, addr);
 
@@ -253,7 +253,7 @@ int of_mdiobus_register(struct mii_bus *mdio, struct device_node *np)
 	/* auto scan for PHYs with empty reg property */
 	for_each_available_child_of_node(np, child) {
 		/* Skip PHYs with reg property set */
-		if (of_find_property(child, "reg", NULL))
+		if (of_find_property(child, "reg", NULL))		/* 重要 */
 			continue;
 
 		for (addr = 0; addr < PHY_MAX_ADDR; addr++) {

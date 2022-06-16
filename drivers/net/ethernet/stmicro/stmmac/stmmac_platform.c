@@ -334,8 +334,7 @@ static int stmmac_dt_phy(struct plat_stmmacenet_data *plat,
 		 * the MDIO
 		 */
 		for_each_child_of_node(np, plat->mdio_node) {
-			if (of_device_is_compatible(plat->mdio_node,"snps,dwmac-mdio"))
-            {
+			if (of_device_is_compatible(plat->mdio_node,"snps,dwmac-mdio")) {
                 dev_info(dev, "snps,dwmac-mdio find OK\n");
                 break;
 			}
@@ -347,6 +346,7 @@ static int stmmac_dt_phy(struct plat_stmmacenet_data *plat,
 		mdio = true;
 	}
 
+	//分配stmmac_mdio_bus_data
 	if (mdio) {
 		plat->mdio_bus_data =
 			devm_kzalloc(dev, sizeof(struct stmmac_mdio_bus_data),
@@ -402,10 +402,12 @@ stmmac_probe_config_dt(struct platform_device *pdev, const char **mac)
 	struct stmmac_dma_cfg *dma_cfg;
 	int rc;
 
+	//分配plat
 	plat = devm_kzalloc(&pdev->dev, sizeof(*plat), GFP_KERNEL);
 	if (!plat)
 		return ERR_PTR(-ENOMEM);
 
+	//获取mac地址
 	*mac = of_get_mac_address(np);
 	if (IS_ERR(*mac)) {
 		if (PTR_ERR(*mac) == -EPROBE_DEFER)
@@ -414,6 +416,7 @@ stmmac_probe_config_dt(struct platform_device *pdev, const char **mac)
 		*mac = NULL;
 	}
 
+	//获取phy mode
 	plat->phy_interface = device_get_phy_mode(&pdev->dev);
 	if (plat->phy_interface < 0)
 		return ERR_PTR(plat->phy_interface);
@@ -433,12 +436,13 @@ stmmac_probe_config_dt(struct platform_device *pdev, const char **mac)
 	if (of_property_read_u32(np, "max-speed", &plat->max_speed))
 		plat->max_speed = -1;
 
+	//别名
 	plat->bus_id = of_alias_get_id(np, "ethernet");
 	if (plat->bus_id < 0)
 		plat->bus_id = 0;
 
 	/* Default to phy auto-detection */
-	plat->phy_addr = -1;
+	plat->phy_addr = -1;	//phy_addr默认-1
 
 	/* Default to get clk_csr from stmmac_clk_crs_set(),
 	 * or get clk_csr from device tree.
@@ -449,16 +453,17 @@ stmmac_probe_config_dt(struct platform_device *pdev, const char **mac)
 	/* "snps,phy-addr" is not a standard property. Mark it as deprecated
 	 * and warn of its use. Remove this when phy node support is added.
 	 */
-	if (of_property_read_u32(np, "snps,phy-addr", &plat->phy_addr) == 0)
+	if (of_property_read_u32(np, "snps,phy-addr", &plat->phy_addr) == 0)	//获取phy addr
 		dev_warn(&pdev->dev, "snps,phy-addr property is deprecated\n");
 
 	/* To Configure PHY by using all device-tree supported properties */
-	rc = stmmac_dt_phy(plat, np, &pdev->dev);		//
+	rc = stmmac_dt_phy(plat, np, &pdev->dev);		/*  */
 	if (rc)
 		return ERR_PTR(rc);
 
+	//发送队列长度
 	of_property_read_u32(np, "tx-fifo-depth", &plat->tx_fifo_size);
-
+	//接收队列长度
 	of_property_read_u32(np, "rx-fifo-depth", &plat->rx_fifo_size);
 
 	plat->force_sf_dma_mode =
@@ -470,7 +475,7 @@ stmmac_probe_config_dt(struct platform_device *pdev, const char **mac)
 	/* Set the maxmtu to a default of JUMBO_LEN in case the
 	 * parameter is not present in the device tree.
 	 */
-	plat->maxmtu = JUMBO_LEN;
+	plat->maxmtu = JUMBO_LEN;	//设备树没有所以mtu最大9000
 
 	/* Set default value for multicast hash bins */
 	plat->multicast_filter_bins = HASH_TABLE_SIZE;
@@ -494,7 +499,7 @@ stmmac_probe_config_dt(struct platform_device *pdev, const char **mac)
 		 * the definition is max-frame-size, but usage examples
 		 * are clearly MTUs
 		 */
-		of_property_read_u32(np, "max-frame-size", &plat->maxmtu);
+		of_property_read_u32(np, "max-frame-size", &plat->maxmtu);	//设备树上3800
 		of_property_read_u32(np, "snps,multicast-filter-bins",
 				     &plat->multicast_filter_bins);
 		of_property_read_u32(np, "snps,perfect-filter-entries",
@@ -559,6 +564,7 @@ stmmac_probe_config_dt(struct platform_device *pdev, const char **mac)
 
 	plat->axi = stmmac_axi_setup(pdev);
 
+	//多队列设置,我们板子中没用到,可以考虑开启
 	rc = stmmac_mtl_setup(pdev, plat);
 	if (rc) {
 		stmmac_remove_config_dt(pdev, plat);
@@ -654,7 +660,7 @@ int stmmac_get_platform_resources(struct platform_device *pdev,
 	/* Get IRQ information early to have an ability to ask for deferred
 	 * probe if needed before we went too far with resource allocation.
 	 */
-	stmmac_res->irq = platform_get_irq_byname(pdev, "macirq");
+	stmmac_res->irq = platform_get_irq_byname(pdev, "macirq");	//
 	if (stmmac_res->irq < 0)
 		return stmmac_res->irq;
 
@@ -677,7 +683,7 @@ int stmmac_get_platform_resources(struct platform_device *pdev,
 		return -EPROBE_DEFER;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	stmmac_res->addr = devm_ioremap_resource(&pdev->dev, res);
+	stmmac_res->addr = devm_ioremap_resource(&pdev->dev, res);	//映射reg
 	
 	return PTR_ERR_OR_ZERO(stmmac_res->addr);
 }

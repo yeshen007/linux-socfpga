@@ -391,7 +391,7 @@ int stmmac_mdio_register(struct net_device *ndev)
 	new_bus->phy_mask = mdio_bus_data->phy_mask;
 	new_bus->parent = priv->device;
 
-	err = of_mdiobus_register(new_bus, mdio_node);
+	err = of_mdiobus_register(new_bus, mdio_node);		/* 重点 */
 	if (err != 0) {
 		dev_err(dev, "Cannot register the MDIO bus, err is %d\n", err);
 		goto bus_register_fail;
@@ -406,7 +406,7 @@ int stmmac_mdio_register(struct net_device *ndev)
 
 	found = 0;
 	for (addr = 0; addr < max_addr; addr++) {
-		struct phy_device *phydev = mdiobus_get_phy(new_bus, addr);
+		struct phy_device *phydev = mdiobus_get_phy(new_bus, addr);	//
 
 		if (!phydev)
 			continue;
@@ -429,7 +429,7 @@ int stmmac_mdio_register(struct net_device *ndev)
 		if (priv->plat->phy_addr == -1)
 			priv->plat->phy_addr = addr;
 
-		phy_attached_info(phydev);
+		phy_attached_info(phydev);	
 		found = 1;
 	}
 

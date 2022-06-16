@@ -415,7 +415,7 @@ int __mdiobus_register(struct mii_bus *bus, struct module *owner)
 		if ((bus->phy_mask & (1 << i)) == 0) {
 			struct phy_device *phydev;
 
-			phydev = mdiobus_scan(bus, i);
+			phydev = mdiobus_scan(bus, i);		/* 重点 */
 			if (IS_ERR(phydev) && (PTR_ERR(phydev) != -ENODEV)) {
 				err = PTR_ERR(phydev);
 				goto error;
@@ -423,6 +423,7 @@ int __mdiobus_register(struct mii_bus *bus, struct module *owner)
 		}
 	}
 
+	//
 	mdiobus_setup_mdiodev_from_board_info(bus, mdiobus_create_device);
 
 	bus->state = MDIOBUS_REGISTERED;
