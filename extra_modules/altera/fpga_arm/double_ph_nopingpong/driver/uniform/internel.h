@@ -80,6 +80,7 @@ struct dev_data_st
 #define HAN_NR_RESET_FPGA	0x2
 #define HAN_NR_PH_DMA		0x3
 #define HAN_NR_SOFT_STOP	0x4
+#define HAN_NR_END_ONE		0x5
 
 
 //cmd
@@ -91,6 +92,7 @@ struct dev_data_st
 #define IOC_CMD_RESET	_IOC(_IOC_NONE,HAN_TYPE_MAGIC,HAN_NR_RESET_FPGA,0)		//设置复位寄存器使fpga复位
 #define IOC_CMD_PH_DMA	_IOC(_IOC_READ,HAN_TYPE_MAGIC,HAN_NR_PH_DMA,0)			//用户获取ph的dma buffer物理地址信息
 #define IOC_CMD_STOP	_IOC(_IOC_NONE,HAN_TYPE_MAGIC,HAN_NR_SOFT_STOP,0)		//退出阻塞
+#define IOC_CMD_END_ONE	_IOC(_IOC_NONE,HAN_TYPE_MAGIC,HAN_NR_END_ONE,0)			//结束一单
 
 
 typedef struct user_info {

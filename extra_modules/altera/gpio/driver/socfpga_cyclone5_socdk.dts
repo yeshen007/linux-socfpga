@@ -117,8 +117,9 @@
 	};	
 
 	gpios {
-        compatible = "gpio_dev,driver-1.0";
-		gpio-num = <11>;
+        compatible = "gpio_dev,driver-2.0";
+		hps-ngpio = <11>;
+		expand-ngpio = <16>;
 		
         hps-gpios = 
 			<&portb 6 GPIO_ACTIVE_LOW>,		/* lock_chip_en */
@@ -161,7 +162,7 @@
 };
 
 /* 光口 */
-&gmac0 {		//socfpga-dwmac.txt  snps,dwmac.yaml  ti,dp83869.yaml dp83869.c
+&gmac0 {		//socfpga-dwmac.txt  snps,dwmac.yaml socfpga-dwmac.c
     status = "okay";
     phy-mode = "rgmii";
 	snps,phy-addr = <10>;	
@@ -170,7 +171,7 @@
         #address-cells = <1>;
         #size-cells = <0>;
 		/* dp83869hw */
-        phy0: ethernet-phy@0 {
+        phy0: ethernet-phy@0 {		//ti,dp83869.yaml dp83869.c
         	compatible = "ethernet-phy-id2000.a0f1";	
         	reg = <10>;
 			ti,op-mode = <DP83869_RGMII_1000_BASE>;

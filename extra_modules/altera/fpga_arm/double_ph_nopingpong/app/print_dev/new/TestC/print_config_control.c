@@ -346,6 +346,16 @@ static void _base_image_tranfer_complete(struct print_info *print_info)
 	} while (reg_val != 0x1);
 }
 
+static void _get_board_id(struct print_info *print_info, unsigned long *id)
+{
+	arg_info_t arg_info;
+
+	arg_info.offset = I_TX_ID_I_RX_ID_I_BOARD_ID;
+	arg_info.size = ONE_REG_SIZE;
+	arg_info.addr = (void*)id;		
+	Ioctl(print_info->down_fd, IOC_CMD_READ, &arg_info);
+}
+
 
 static void _config_raster_sim_params(struct print_info *print_info, unsigned long *regs)
 {
@@ -416,15 +426,15 @@ static void _config_print_offset(struct print_info *print_info, unsigned long *r
 	reg_val[1] = regs[1];
 	reg_val[2] = regs[2];
 	reg_val[3] = regs[3];
-	reg_val[4] = regs[4];	
+	reg_val[4] = regs[4];
 	reg_val[5] = regs[5];
 	reg_val[6] = regs[6];
 	reg_val[7] = regs[7];
-	reg_val[8] = regs[8];	
+	reg_val[8] = regs[8];
 	arg_info.offset = O_PH_OFFSET;
 	arg_info.size = 9*ONE_REG_SIZE;
 	arg_info.addr = (void*)&reg_val[0];
-	Ioctl(print_info->down_fd, IOC_CMD_WRITE, &arg_info);	
+	Ioctl(print_info->down_fd, IOC_CMD_WRITE, &arg_info);
 }
 
 static void _config_fire_delay(struct print_info *print_info, unsigned long *regs)
@@ -514,6 +524,7 @@ static void _init_print_info(struct print_info *print_info)
 	print_info->base_image_enable = _base_image_enable;
 	print_info->base_image_disable = _base_image_disable;
 	print_info->base_image_tranfer_complete = _base_image_tranfer_complete;
+	print_info->get_borad_id = _get_board_id;
 	
 	print_info->config_raster_sim_params = _config_raster_sim_params;
 	print_info->config_pd_sim_params = _config_pd_sim_params;
@@ -549,6 +560,7 @@ static void _close_print_info(struct print_info *print_info)
 	print_info->base_image_enable = NULL;
 	print_info->base_image_disable = NULL;
 	print_info->base_image_tranfer_complete = NULL;
+	print_info->get_borad_id = NULL;
 	
 	print_info->config_raster_sim_params = NULL;
 	print_info->config_pd_sim_params = NULL;

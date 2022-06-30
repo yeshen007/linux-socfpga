@@ -470,7 +470,7 @@ int kobject_init_and_add(struct kobject *kobj, struct kobj_type *ktype,
 	kobject_init(kobj, ktype);
 
 	va_start(args, fmt);
-	retval = kobject_add_varg(kobj, parent, fmt, args);
+	retval = kobject_add_varg(kobj, parent, fmt, args);		//378
 	va_end(args);
 
 	return retval;

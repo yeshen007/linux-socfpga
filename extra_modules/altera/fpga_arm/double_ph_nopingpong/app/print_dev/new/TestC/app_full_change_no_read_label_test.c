@@ -154,10 +154,6 @@ finish_print:
 	else 
 		printf("down read stop bad at or before the last time\n");
 
-		
-
-	/* step 7 */
-	//g_print_info.print_disable(&g_print_info);
 
 	/* 释放资源 */
 	close_print_info(&g_print_info);

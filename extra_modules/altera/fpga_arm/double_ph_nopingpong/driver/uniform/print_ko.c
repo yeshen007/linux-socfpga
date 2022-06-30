@@ -201,6 +201,155 @@ static irqreturn_t accident_stop_interrupt_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+
+/* 初始化上行驱动数据 */
+static int up_dev_open(struct inode *ip, struct file *fp)
+{
+	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_up;
+
+	/* 如果是非阻塞 */
+	if (fp->f_flags & O_NONBLOCK) {
+		if (down_trylock(&dev->sem)) {
+			pr_err("up_dev_open get sem failed, try again\n");
+			return -EAGAIN;
+		}
+	} else {
+		if (down_interruptible(&dev->sem)) {
+			pr_info("up_dev_open sem interrupted exit\n");
+			return -EINTR;
+		}
+	}
+
+	fp->private_data = dev;		//设置为设备文件/dev/up_dev的私有数据
+	
+	if (!dev->count) {
+		/* 初始化没有可用的，因此要先transfer来个中断才会read到一个 */
+		InitQueueF2sm(&g_avail_membuf_queue_up);
+		
+		the_f2sm_ram_dev_up.cur_io_buf_index = UP_QUEUE_NOT_AVAILABLE;
+		which_interrput_up = NON_STOP;
+		print_state_up = UNDONE;
+
+	}
+	
+	dev->count++;
+
+	up(&dev->sem);
+	
+	return 0;		//这个值不会直接返回给用户,会经过内核返回文件描述符给用户
+}
+
+
+/* 初始化下行驱动数据 */
+static int down_dev_open(struct inode *ip, struct file *fp)
+{
+	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_down;
+
+	/* 如果是非阻塞 */
+	if (fp->f_flags & O_NONBLOCK) {
+		if (down_trylock(&dev->sem)) {
+			pr_err("down_dev_open get sem failed, try again\n");
+			return -EAGAIN;
+		}
+	} else {
+		if (down_interruptible(&dev->sem)) {
+			pr_info("down_dev_open sem interrupted exit\n");
+			return -EINTR;
+		}
+	}
+
+	fp->private_data = dev;		//设置为设备文件/dev/down_dev的私有数据
+
+	if (!dev->count) {
+		/* 初始化就有一个，因此一开始直接读就一定会有一个 */
+		InitQueueF2sm(&g_avail_membuf_queue_down);
+		EnQueueF2sm(&g_avail_membuf_queue_down);	
+	
+		the_f2sm_ram_dev_down.cur_io_buf_index = DOWN_QUEUE_AVAILABLE;
+		which_interrput_down = NON_STOP;
+		print_state_down = UNDONE;
+	}
+
+	dev->count++;
+
+	up(&dev->sem);
+	
+	return 0;	//这个值不会直接返回给用户,会经过内核返回文件描述符给用户
+}
+
+
+/* 释放上行驱动数据 */
+static int up_dev_flush(struct file *fp, fl_owner_t id)
+{
+	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_up;
+
+	/* 如果是非阻塞 */
+	if (fp->f_flags & O_NONBLOCK) {
+		if (down_trylock(&dev->sem)) {
+			pr_err("up_dev_release get sem failed, try again\n");
+			return -EAGAIN;
+		}
+	} else {
+		if (down_interruptible(&dev->sem)) {
+			pr_info("up_dev_release sem interrupted exit\n");
+			return -EINTR;
+		}
+	}
+
+	dev->count--;
+	
+	if (!dev->count) {
+		InitQueueF2sm(&g_avail_membuf_queue_up); 
+		the_f2sm_ram_dev_up.cur_io_buf_index = UP_QUEUE_NOT_AVAILABLE;
+	}
+	
+	up(&dev->sem);
+	
+	return 0;	
+}
+
+
+static int up_dev_release(struct inode *ip, struct file *fp)
+{	
+	return 0;		
+}
+
+static int down_dev_flush(struct file *fp, fl_owner_t id)
+{
+	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_down;
+
+	/* 如果是非阻塞 */
+	if (fp->f_flags & O_NONBLOCK) {
+		if (down_trylock(&dev->sem)) {
+			pr_err("down_dev_release get sem failed, try again\n");
+			return -EAGAIN;
+		}
+	} else {
+		if (down_interruptible(&dev->sem)) {
+			pr_info("down_dev_release sem interrupted exit\n");
+			return -EINTR;
+		}
+	}
+	
+	dev->count--;
+	
+	if (!dev->count) {
+		InitQueueF2sm(&g_avail_membuf_queue_down); 
+		the_f2sm_ram_dev_down.cur_io_buf_index = DOWN_QUEUE_NOT_AVAILABLE;
+	}
+	
+	up(&dev->sem);
+	
+	return 0;
+}
+
+
+static int down_dev_release(struct inode *ip, struct file *fp)
+{
+	return 0;
+}
+
+
 /* 下行write */
 static ssize_t
 down_dev_write(struct file *fp,
@@ -228,6 +377,7 @@ down_dev_write(struct file *fp,
 
 	buf_index = the_f2sm_ram_dev_down.cur_io_buf_index;
 	if (buf_index != DOWN_QUEUE_AVAILABLE) {
+		up(&dev->sem);
 		pr_err("down_dev_write buf_index error exit\n");
 		return -ERESTARTSYS;		
 	}
@@ -237,6 +387,7 @@ down_dev_write(struct file *fp,
 	max_offset = dev->p_uio_info->mem[DOWN_MEM_INDEX].size;
 
 	if (temp_count > max_offset) {
+		up(&dev->sem);
 		pr_err("down_dev_write count too big error exit\n");
 		return -EINVAL;
 	}
@@ -597,142 +748,6 @@ ret_to_user_with_dma_interrupt_after_print_interrupt:
 }
 
 
-/* 初始化上行驱动数据 */
-static int up_dev_open(struct inode *ip, struct file *fp)
-{
-	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_up;
-
-	/* 如果是非阻塞 */
-	if (fp->f_flags & O_NONBLOCK) {
-		if (down_trylock(&dev->sem)) {
-			pr_err("up_dev_open get sem failed, try again\n");
-			return -EAGAIN;
-		}
-	} else {
-		if (down_interruptible(&dev->sem)) {
-			pr_info("up_dev_open sem interrupted exit\n");
-			return -EINTR;
-		}
-	}
-
-	fp->private_data = dev;		//设置为设备文件/dev/up_dev的私有数据
-	
-	if (!dev->count) {
-		/* 初始化没有可用的，因此要先transfer来个中断才会read到一个 */
-		InitQueueF2sm(&g_avail_membuf_queue_up);
-		
-		the_f2sm_ram_dev_up.cur_io_buf_index = UP_QUEUE_NOT_AVAILABLE;
-		which_interrput_up = NON_STOP;
-		print_state_up = UNDONE;
-
-	}
-	
-	dev->count++;
-
-	up(&dev->sem);
-	
-	return 0;		//这个值不会直接返回给用户,会经过内核返回文件描述符给用户
-}
-
-
-/* 初始化下行驱动数据 */
-static int down_dev_open(struct inode *ip, struct file *fp)
-{
-	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_down;
-
-	/* 如果是非阻塞 */
-	if (fp->f_flags & O_NONBLOCK) {
-		if (down_trylock(&dev->sem)) {
-			pr_err("down_dev_open get sem failed, try again\n");
-			return -EAGAIN;
-		}
-	} else {
-		if (down_interruptible(&dev->sem)) {
-			pr_info("down_dev_open sem interrupted exit\n");
-			return -EINTR;
-		}
-	}
-
-	fp->private_data = dev;		//设置为设备文件/dev/down_dev的私有数据
-
-	if (!dev->count) {
-		/* 初始化就有一个，因此一开始直接读就一定会有一个 */
-		InitQueueF2sm(&g_avail_membuf_queue_down);
-		EnQueueF2sm(&g_avail_membuf_queue_down);	
-	
-		the_f2sm_ram_dev_down.cur_io_buf_index = DOWN_QUEUE_AVAILABLE;
-		which_interrput_down = NON_STOP;
-		print_state_down = UNDONE;
-	}
-
-	dev->count++;
-
-	up(&dev->sem);
-	
-	return 0;	//这个值不会直接返回给用户,会经过内核返回文件描述符给用户
-}
-
-
-/* 释放上行驱动数据 */
-static int up_dev_release(struct inode *ip, struct file *fp)
-{
-	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_up;
-
-	/* 如果是非阻塞 */
-	if (fp->f_flags & O_NONBLOCK) {
-		if (down_trylock(&dev->sem)) {
-			pr_err("up_dev_release get sem failed, try again\n");
-			return -EAGAIN;
-		}
-	} else {
-		if (down_interruptible(&dev->sem)) {
-			pr_info("up_dev_release sem interrupted exit\n");
-			return -EINTR;
-		}
-	}
-
-	dev->count--;
-	
-	if (!dev->count) {
-		InitQueueF2sm(&g_avail_membuf_queue_up); 
-		the_f2sm_ram_dev_up.cur_io_buf_index = UP_QUEUE_NOT_AVAILABLE;
-	}
-	
-	up(&dev->sem);
-	
-	return 0;		
-}
-
-static int down_dev_release(struct inode *ip, struct file *fp)
-{
-	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_down;
-
-	/* 如果是非阻塞 */
-	if (fp->f_flags & O_NONBLOCK) {
-		if (down_trylock(&dev->sem)) {
-			pr_err("down_dev_release get sem failed, try again\n");
-			return -EAGAIN;
-		}
-	} else {
-		if (down_interruptible(&dev->sem)) {
-			pr_info("down_dev_release sem interrupted exit\n");
-			return -EINTR;
-		}
-	}
-	
-	dev->count--;
-	
-	if (!dev->count) {
-		InitQueueF2sm(&g_avail_membuf_queue_down); 
-		the_f2sm_ram_dev_down.cur_io_buf_index = DOWN_QUEUE_NOT_AVAILABLE;
-	}
-	
-	up(&dev->sem);
-	
-	return 0;
-}
-
-
 /* 用户读取寄存器 */
 static long up_dev_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 {
@@ -866,6 +881,11 @@ static long down_dev_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 	case IOC_CMD_PH_DMA:		
 		size = 4 * sizeof(unsigned long);
 		dma_info = (unsigned long*)kzalloc(size, GFP_KERNEL);
+		if (!dma_info) {
+			pr_err("IOC_CMD_PH_DMA kzalloc failed!\n");
+			up(&dev->sem);
+			return -ENOMEM;
+		}
 		dma_info[0] = MEM_PHY_UP;
 		dma_info[1] = MEM_PHY_UP_SIZE;
 		dma_info[2] = MEM_PHY_DOWN;
@@ -891,6 +911,30 @@ static long down_dev_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 		wake_up_interruptible(&g_irq_wait_queue_up);
 		wake_up_interruptible(&g_down_poll_queue);
 		wake_up_interruptible(&g_up_poll_queue);
+		break;
+
+	case IOC_CMD_END_ONE:
+		/* 复位下行相关数据 */
+		spin_lock(&g_irq_lock);
+		InitQueueF2sm(&g_avail_membuf_queue_down);
+		EnQueueF2sm(&g_avail_membuf_queue_down);
+		the_f2sm_ram_dev_down.cur_io_buf_index = DOWN_QUEUE_AVAILABLE;
+		which_interrput_down = NON_STOP;
+		print_state_down = UNDONE;
+		spin_unlock(&g_irq_lock);
+		/* 复位上行相关数据 */
+		if (down_interruptible(&the_f2sm_ram_dev_up.sem)) {
+			pr_info("IOC_CMD_END_ONE sem interrupted exit\n");
+			up(&dev->sem);
+			return -EINTR;
+		}	
+		spin_lock(&g_irq_lock);
+		InitQueueF2sm(&g_avail_membuf_queue_up);
+		the_f2sm_ram_dev_up.cur_io_buf_index = UP_QUEUE_NOT_AVAILABLE;
+		which_interrput_up = NON_STOP;
+		print_state_up = UNDONE;
+		spin_unlock(&g_irq_lock);
+		up(&the_f2sm_ram_dev_up.sem);
 		break;
 		
 	default:
@@ -947,6 +991,7 @@ static __poll_t down_dev_poll(struct file *fp, struct poll_table_struct *wait)
 static const struct file_operations up_dev_fops = {
 	.owner = THIS_MODULE,
 	.open = up_dev_open,
+	.flush = up_dev_flush,
 	.release = up_dev_release,
 	.read = up_dev_read,
 	.unlocked_ioctl = up_dev_ioctl,
@@ -962,6 +1007,7 @@ static struct miscdevice up_dev_device = {
 static const struct file_operations down_dev_fops = {
 	.owner = THIS_MODULE,
 	.open = down_dev_open,
+	.flush = down_dev_flush,
 	.release = down_dev_release,
 	.write = down_dev_write,
 	.read = down_dev_read,
@@ -1241,8 +1287,11 @@ static int platform_remove(struct platform_device *pdev)
 
 	pr_info("platform_remove enter\n");
 
+	if (down_interruptible(&g_dev_probe_sem))
+		return -ERESTARTSYS;	
+
 	misc_deregister(&up_dev_device);
-	misc_deregister(&down_dev_device);
+	misc_deregister(&down_dev_device);	
 
 	priv = platform_get_drvdata(pdev);
 	free_irq(priv->mem0_irq, priv);
@@ -1273,9 +1322,6 @@ static int platform_remove(struct platform_device *pdev)
 		priv->the_uio_info.mem[1].internal_addr = NULL;
 	}
 
-	if (down_interruptible(&g_dev_probe_sem))
-		return -ERESTARTSYS;
-
 	g_platform_probe_flag = 0;
 	
 	up(&g_dev_probe_sem);
@@ -1296,37 +1342,31 @@ static struct platform_driver the_platform_driver = {
 	.probe = platform_probe,
 	.remove = platform_remove,
 	.driver = {
-		   .name = "print_dev_driver",
-		   .owner = THIS_MODULE,
-		   .of_match_table = print_driver_dt_ids,
-		   },
+	   .name = "print_dev_driver",
+	   .owner = THIS_MODULE,
+	   .of_match_table = print_driver_dt_ids,
+	},
 
 };
 
 static int print_init(void)
 {
 	int ret_val;
-	pr_info("print_dev_init enter\n");
-
 	sema_init(&g_dev_probe_sem, 1);
-
 	ret_val = platform_driver_register(&the_platform_driver);
 	if (ret_val != 0) {
 		pr_err("platform_driver_register returned %d\n", ret_val);
 		return ret_val;
 	}
-
-	pr_info("print_dev_init exit\n");
+	pr_info("print_init\n");
 	return 0;
 }
 
 static void print_exit(void)
 {
-	pr_info("print_dev_exit enter\n");
-
 	platform_driver_unregister(&the_platform_driver);
-
-	pr_info("print_dev_exit exit\n");
+	sema_init(&g_dev_probe_sem, 0);
+	pr_info("print_exit\n");
 }
 
 module_init(print_init);

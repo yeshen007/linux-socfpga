@@ -139,8 +139,8 @@ static int stmmac_mtl_setup(struct platform_device *pdev,
 	 * snps,mtl-rx-config or snps,mtl-tx-config properties, we fall back
 	 * to one RX and TX queues each.
 	 */
-	plat->rx_queues_to_use = 1;
-	plat->tx_queues_to_use = 1;
+	plat->rx_queues_to_use = 1;		//
+	plat->tx_queues_to_use = 1;		//
 
 	/* First Queue must always be in DCB mode. As MTL_QUEUE_DCB = 1 we need
 	 * to always set this, otherwise Queue will be classified as AVB
@@ -565,7 +565,7 @@ stmmac_probe_config_dt(struct platform_device *pdev, const char **mac)
 	plat->axi = stmmac_axi_setup(pdev);
 
 	//多队列设置,我们板子中没用到,可以考虑开启
-	rc = stmmac_mtl_setup(pdev, plat);
+	rc = stmmac_mtl_setup(pdev, plat);	//plat->rx_queues_to_use,plat->tx_queues_to_use
 	if (rc) {
 		stmmac_remove_config_dt(pdev, plat);
 		return ERR_PTR(rc);

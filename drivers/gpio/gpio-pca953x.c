@@ -867,7 +867,7 @@ static int pca953x_probe(struct i2c_client *client,
 	u32 invert = 0;
 	struct regulator *reg;
 
-	chip = devm_kzalloc(&client->dev, sizeof(*chip), GFP_KERNEL);
+	chip = devm_kzalloc(&client->dev, sizeof(*chip), GFP_KERNEL);	
 	if (chip == NULL)
 		return -ENOMEM;
 
@@ -877,7 +877,7 @@ static int pca953x_probe(struct i2c_client *client,
 		chip->gpio_start = pdata->gpio_base;
 		invert = pdata->invert;
 		chip->names = pdata->names;
-	} else {
+	} else {	//
 		struct gpio_desc *reset_gpio;
 
 		chip->gpio_start = -1;
@@ -896,7 +896,7 @@ static int pca953x_probe(struct i2c_client *client,
 			return PTR_ERR(reset_gpio);
 	}
 
-	chip->client = client;
+	chip->client = client;		//
 
 	reg = devm_regulator_get(&client->dev, "vcc");
 	if (IS_ERR(reg)) {
@@ -913,11 +913,11 @@ static int pca953x_probe(struct i2c_client *client,
 	chip->regulator = reg;
 
 	if (i2c_id) {
-		chip->driver_data = i2c_id->driver_data;
+		chip->driver_data = i2c_id->driver_data;	//OF_953X(16, PCA_INT)
 	} else {
 		const void *match;
 
-		match = device_get_match_data(&client->dev);
+		match = device_get_match_data(&client->dev);	//
 		if (!match) {
 			ret = -ENODEV;
 			goto err_exit;
@@ -926,15 +926,15 @@ static int pca953x_probe(struct i2c_client *client,
 		chip->driver_data = (uintptr_t)match;
 	}
 
-	i2c_set_clientdata(client, chip);
+	i2c_set_clientdata(client, chip);	//
 
-	chip->regmap = devm_regmap_init_i2c(client, &pca953x_i2c_regmap);
+	chip->regmap = devm_regmap_init_i2c(client, &pca953x_i2c_regmap);	//
 	if (IS_ERR(chip->regmap)) {
 		ret = PTR_ERR(chip->regmap);
 		goto err_exit;
 	}
 
-	regcache_mark_dirty(chip->regmap);
+	regcache_mark_dirty(chip->regmap);		//
 
 	mutex_init(&chip->i2c_lock);
 	/*
@@ -959,11 +959,11 @@ static int pca953x_probe(struct i2c_client *client,
 	/* initialize cached registers from their original values.
 	 * we can't share this chip with another i2c master.
 	 */
-	pca953x_setup_gpio(chip, chip->driver_data & PCA_GPIO_MASK);
+	pca953x_setup_gpio(chip, chip->driver_data & PCA_GPIO_MASK);	//
 
 	if (PCA_CHIP_TYPE(chip->driver_data) == PCA953X_TYPE) {
-		chip->regs = &pca953x_regs;
-		ret = device_pca95xx_init(chip, invert);
+		chip->regs = &pca953x_regs;	//
+		ret = device_pca95xx_init(chip, invert);	//
 	} else {
 		chip->regs = &pca957x_regs;
 		ret = device_pca957x_init(chip, invert);
@@ -971,11 +971,11 @@ static int pca953x_probe(struct i2c_client *client,
 	if (ret)
 		goto err_exit;
 
-	ret = devm_gpiochip_add_data(&client->dev, &chip->gpio_chip, chip);
+	ret = devm_gpiochip_add_data(&client->dev, &chip->gpio_chip, chip);	//
 	if (ret)
 		goto err_exit;
 
-	ret = pca953x_irq_setup(chip, irq_base);
+	ret = pca953x_irq_setup(chip, irq_base);	//
 	if (ret)
 		goto err_exit;
 
@@ -1156,12 +1156,12 @@ static struct i2c_driver pca953x_driver = {
 	.driver = {
 		.name	= "pca953x",
 		.pm	= &pca953x_pm_ops,
-		.of_match_table = pca953x_dt_ids,
-		.acpi_match_table = ACPI_PTR(pca953x_acpi_ids),
+		.of_match_table = pca953x_dt_ids,		//
+		.acpi_match_table = ACPI_PTR(pca953x_acpi_ids),	
 	},
 	.probe		= pca953x_probe,
 	.remove		= pca953x_remove,
-	.id_table	= pca953x_id,
+	.id_table	= pca953x_id,		//
 };
 
 static int __init pca953x_init(void)

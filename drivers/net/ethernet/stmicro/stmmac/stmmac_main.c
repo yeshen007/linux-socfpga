@@ -2064,7 +2064,7 @@ static int stmmac_napi_check(struct stmmac_priv *priv, u32 chan)
 	if ((status & handle_rx) && (chan < priv->plat->rx_queues_to_use)) {
 		if (napi_schedule_prep(&ch->rx_napi)) {
 			stmmac_disable_dma_irq(priv, priv->ioaddr, chan);
-			__napi_schedule_irqoff(&ch->rx_napi);
+			__napi_schedule_irqoff(&ch->rx_napi);		/*  */
 			status |= handle_tx;
 		}
 	}
@@ -2096,7 +2096,7 @@ static void stmmac_dma_interrupt(struct stmmac_priv *priv)
 		channels_to_check = ARRAY_SIZE(status);
 
 	for (chan = 0; chan < channels_to_check; chan++)
-		status[chan] = stmmac_napi_check(priv, chan);
+		status[chan] = stmmac_napi_check(priv, chan);	/*  */
 
 	for (chan = 0; chan < tx_channel_count; chan++) {
 		if (unlikely(status[chan] & tx_hard_error_bump_tc)) {
@@ -2645,7 +2645,7 @@ static void stmmac_hw_teardown(struct net_device *dev)
  *  0 on success and an appropriate (-)ve integer as defined in errno.h
  *  file on failure.
  */
-static int stmmac_open(struct net_device *dev)
+static int stmmac_open(struct net_device *dev)		//注册分配dma ring buffer和中断
 {
 	struct stmmac_priv *priv = netdev_priv(dev);
 	int bfsize = 0;
@@ -2706,7 +2706,7 @@ static int stmmac_open(struct net_device *dev)
 
 	/* Request the IRQ lines */
 	ret = request_irq(dev->irq, stmmac_interrupt,
-			  IRQF_SHARED, dev->name, dev);
+			  IRQF_SHARED, dev->name, dev);		//硬件中断处理函数
 	if (unlikely(ret < 0)) {
 		netdev_err(priv->dev,
 			   "%s: ERROR: allocating the IRQ %d (error: %d)\n",
@@ -3717,7 +3717,7 @@ drain_data:
 			skb_set_hash(skb, hash, hash_type);
 
 		skb_record_rx_queue(skb, queue);
-		napi_gro_receive(&ch->rx_napi, skb);
+		napi_gro_receive(&ch->rx_napi, skb);		/*  */
 		skb = NULL;
 
 		priv->dev->stats.rx_packets++;
@@ -3918,7 +3918,7 @@ static int stmmac_set_features(struct net_device *netdev,
  *  o Core interrupts to manage: remote wake-up, management counter, LPI
  *    interrupts.
  */
-static irqreturn_t stmmac_interrupt(int irq, void *dev_id)
+static irqreturn_t stmmac_interrupt(int irq, void *dev_id)		//挂poll,启动接收软中断
 {
 	struct net_device *dev = (struct net_device *)dev_id;
 	struct stmmac_priv *priv = netdev_priv(dev);
@@ -3983,7 +3983,7 @@ static irqreturn_t stmmac_interrupt(int irq, void *dev_id)
 	}
 
 	/* To handle DMA interrupts */
-	stmmac_dma_interrupt(priv);
+	stmmac_dma_interrupt(priv);		/* napi_schedule启动软中断 */
 
 	return IRQ_HANDLED;
 }
@@ -4393,7 +4393,7 @@ static int stmmac_vlan_rx_kill_vid(struct net_device *ndev, __be16 proto, u16 vi
 }
 
 static const struct net_device_ops stmmac_netdev_ops = {
-	.ndo_open = stmmac_open,
+	.ndo_open = stmmac_open,		//ifconfig eth0 up调用
 	.ndo_start_xmit = stmmac_xmit,
 	.ndo_stop = stmmac_release,
 	.ndo_change_mtu = stmmac_change_mtu,
@@ -4625,7 +4625,7 @@ int stmmac_dvr_probe(struct device *device,
 	stmmac_check_ether_addr(priv);
 
 	/* Configure real RX and TX queues */
-	netif_set_real_num_rx_queues(ndev, priv->plat->rx_queues_to_use);	//
+	netif_set_real_num_rx_queues(ndev, priv->plat->rx_queues_to_use);	//队列
 	netif_set_real_num_tx_queues(ndev, priv->plat->tx_queues_to_use);
 
 	ndev->netdev_ops = &stmmac_netdev_ops;		//
@@ -4728,6 +4728,7 @@ int stmmac_dvr_probe(struct device *device,
 	/* Setup channels NAPI */
 	maxq = max(priv->plat->rx_queues_to_use, priv->plat->tx_queues_to_use);
 
+	/* 设置napi函数到napi_struct */
 	for (queue = 0; queue < maxq; queue++) {
 		struct stmmac_channel *ch = &priv->channel[queue];
 

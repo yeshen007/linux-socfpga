@@ -57,10 +57,11 @@ int main(void)
 	unsigned long ph0_seed = 66;
 	unsigned long ph1_seed = 99;
 
+#ifdef POLL_TEST
 	/* poll测试参数 */
 	struct pollfd fds;
 	nfds_t nfds = 1;
-	
+#endif	
 
 	/* 构造发送给fpga的数据 */
 	build_fpga_data(ph0_data, ph1_data, block_size, block_cnt);
@@ -102,13 +103,15 @@ int main(void)
 	Write(g_print_info.down_fd, ph0_data, dma_blks_one_time * block_size);
 	
 	g_print_info.starttransfer_down_seed(&g_print_info, ph0_seed, ph1_seed, dma_blks_one_time);
-	
+
+#ifdef POLL_TEST	
 	memset(&fds,0,sizeof(fds));
 	fds.fd = g_print_info.down_fd;
 	fds.events |= POLLIN;
 	Poll(&fds, nfds, 10);
 	if (!(fds.revents & POLLIN)) 
 		printf("first dma interrupt poll timeout\n");
+#endif
 
 	Read(g_print_info.down_fd, &read_info, sizeof(read_info));
 	
@@ -152,9 +155,6 @@ finish_print:
 	else 
 		printf("down read stop bad at or before the last time\n");
 			
-
-	/* step 7 */
-	//g_print_info.print_disable(&g_print_info);
 
 	/* 释放资源 */
 	close_print_info(&g_print_info);

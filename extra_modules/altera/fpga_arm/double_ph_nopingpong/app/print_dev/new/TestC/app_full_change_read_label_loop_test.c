@@ -180,9 +180,6 @@ loop_release_down_thread:
 loop_release_free_mem:
 	
 
-	/* step 7 */
-	//g_print_info.print_disable(&g_print_info);
-
 	/* 释放资源 */	
 	close_print_info(&g_print_info);
 	free(ph0_data);

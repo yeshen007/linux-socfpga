@@ -5836,7 +5836,7 @@ static gro_result_t napi_skb_finish(struct napi_struct *napi,
 {
 	switch (ret) {
 	case GRO_NORMAL:
-		gro_normal_one(napi, skb);
+		gro_normal_one(napi, skb);		/*  */
 		break;
 
 	case GRO_DROP:
@@ -5868,7 +5868,7 @@ gro_result_t napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
 
 	skb_gro_reset_offset(skb);
 
-	ret = napi_skb_finish(napi, skb, dev_gro_receive(napi, skb));
+	ret = napi_skb_finish(napi, skb, dev_gro_receive(napi, skb));		/**/
 	trace_napi_gro_receive_exit(ret);
 
 	return ret;

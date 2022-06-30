@@ -58,6 +58,7 @@ typedef struct print_info {
 	void (*base_image_enable)(struct print_info *print_info);	//开始基图发送
 	void (*base_image_disable)(struct print_info *print_info);	//结束基图发送
 	void (*base_image_tranfer_complete)(struct print_info *print_info);	//轮询等待基图发送完成
+	void (*get_borad_id)(struct print_info *print_info, unsigned long *id);		//获取borad id
 
 	/* 打印相关参数 */
 	void (*config_raster_sim_params)(struct print_info *print_info, unsigned long *regs);	//配置raster仿真参数

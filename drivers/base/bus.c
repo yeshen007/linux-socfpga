@@ -817,7 +817,7 @@ int bus_register(struct bus_type *bus)
 	if (retval)
 		goto out;
 
-	priv->subsys.kobj.kset = bus_kset;
+	priv->subsys.kobj.kset = bus_kset;		
 	priv->subsys.kobj.ktype = &bus_ktype;
 	priv->drivers_autoprobe = 1;
 

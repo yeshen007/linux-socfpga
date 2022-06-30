@@ -117,7 +117,7 @@ typedef struct arg_info {
 	void *addr;					//需要写入寄存器的变量地址或者读出寄存器存放的变量地址
 } arg_info_t;
 
-
+#define ONE_BYTE		 1
 #define HALF_REG_SIZE 	 2
 #define ONE_REG_SIZE 	 4
 

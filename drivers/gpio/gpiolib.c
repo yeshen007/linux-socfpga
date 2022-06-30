@@ -1408,7 +1408,7 @@ int gpiochip_add_data_with_key(struct gpio_chip *chip, void *data,
 		return -ENOMEM;
 	gdev->dev.bus = &gpio_bus_type;
 	gdev->chip = chip;
-	chip->gpiodev = gdev;
+	chip->gpiodev = gdev;		//
 	if (chip->parent) {
 		gdev->dev.parent = chip->parent;
 		gdev->dev.of_node = chip->parent->of_node;
@@ -1419,7 +1419,7 @@ int gpiochip_add_data_with_key(struct gpio_chip *chip, void *data,
 	if (chip->of_node)
 		gdev->dev.of_node = chip->of_node;
 	else
-		chip->of_node = gdev->dev.of_node;
+		chip->of_node = gdev->dev.of_node;		//
 #endif
 
 	gdev->id = ida_simple_get(&gpio_ida, 0, 0, GFP_KERNEL);
