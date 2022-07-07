@@ -33,7 +33,8 @@ CFILES := print_config_control.c utils.c
 #CFILES += app_soft_stop_test.c
 #CFILES += app_nonblock_test.c
 #CFILES += app_timeout_test.c
-CFILES += app_get_id_test.c
+#CFILES += app_get_id_test.c
+CFILES += app_output_regs_test.c
 
 CPPFILES :=	
 

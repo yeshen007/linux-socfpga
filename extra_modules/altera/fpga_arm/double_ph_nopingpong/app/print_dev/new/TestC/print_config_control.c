@@ -501,6 +501,32 @@ static void _config_search_label_params(struct print_info *print_info, unsigned 
 }
 
 
+static void _debug_output_regs(struct print_info *print_info)
+{
+	unsigned long reg_index;
+	unsigned long reg_val;
+	arg_info_t arg_info;
+	arg_info.size = ONE_REG_SIZE;
+	arg_info.addr = (void*)&reg_val;		
+
+	FILE *regs_value_file;
+	regs_value_file = fopen("regs.txt", "w+");
+	if (regs_value_file == NULL)
+		fprintf(stderr, "open regs.txt error\n");
+	
+	/* 将寄存器值写入regs.txt */
+	for (reg_index = 0; reg_index <= 355; reg_index++) {
+		arg_info.offset = reg_index;
+		Ioctl(print_info->down_fd, IOC_CMD_READ, &arg_info);
+		fprintf(regs_value_file, "reg %lu -- decvalue %ld -- hexvalue 0x%08lx\n", 
+				reg_index, (long)reg_val, reg_val);
+	}
+
+	fclose(regs_value_file);
+}
+
+
+
 static void _init_print_info(struct print_info *print_info)
 {		
 	print_info->print_init = _print_init;
@@ -534,6 +560,8 @@ static void _init_print_info(struct print_info *print_info)
 	print_info->config_fire_delay = _config_fire_delay;
 	print_info->config_nozzle_switch = _config_nozzle_switch;
 	print_info->config_search_label_params = _config_search_label_params;
+
+	print_info->debug_output_regs = _debug_output_regs;
 }
 
 
@@ -570,6 +598,8 @@ static void _close_print_info(struct print_info *print_info)
 	print_info->config_fire_delay = NULL;
 	print_info->config_nozzle_switch = NULL;
 	print_info->config_search_label_params = NULL;
+
+	print_info->debug_output_regs = NULL;
 }
 
 

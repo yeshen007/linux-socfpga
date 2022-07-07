@@ -69,6 +69,9 @@ typedef struct print_info {
 	void (*config_fire_delay)(struct print_info *print_info, unsigned long *regs);			//配置点火延时
 	void (*config_nozzle_switch)(struct print_info *print_info, unsigned long *regs);		//配置喷孔开关
 	void (*config_search_label_params)(struct print_info *print_info, unsigned long *regs);	//配置搜标参数
+
+	/* 调试使用 */
+	void (*debug_output_regs)(struct print_info *print_info);	//将fpga寄存器值输出到当前目录的regs.txt
 } print_info_t;
 
 

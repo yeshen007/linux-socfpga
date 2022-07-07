@@ -20,6 +20,8 @@
 #include <asm-generic/ioctl.h>
 #include <linux/reset.h>
 #include <linux/poll.h>
+#include <linux/fs.h>
+#include <linux/signal.h>
 
 
 #include "internel.h"
@@ -27,6 +29,8 @@
 
 static int normal_stop_irq;
 static int accident_stop_irq;
+static int alarm_non_stop_irq;
+
 static spinlock_t g_irq_lock;
 static uint32_t g_irq_count_down;
 static uint32_t g_irq_count_up;
@@ -47,7 +51,7 @@ static wait_queue_head_t g_irq_wait_queue_up;
 static wait_queue_head_t g_down_poll_queue;
 static wait_queue_head_t g_up_poll_queue;
 
-
+static struct fasync_struct *g_sigio_list;
 
 static struct platform_driver the_platform_driver;
 
@@ -122,7 +126,7 @@ static irqreturn_t f2sm_driver_interrupt_handler_down(int irq, void *data)
 	spin_lock(&g_irq_lock);
 	
 	if (EnQueueF2sm(&g_avail_membuf_queue_down) < 0) 
-		pr_info("down irq %d recved but EnQueueF2sm wrong! \n", irq);
+		pr_err("down irq %d recved but EnQueueF2sm wrong! \n", irq);
 
 	the_f2sm_ram_dev_down.cur_io_buf_index = DOWN_QUEUE_AVAILABLE;
 	
@@ -142,7 +146,7 @@ static irqreturn_t f2sm_driver_interrupt_handler_up(int irq, void *data)
 	spin_lock(&g_irq_lock);
 	
 	if (EnQueueF2sm(&g_avail_membuf_queue_up) < 0)
-		pr_info("up irq %d recved but EnQueueF2sm wrong! \n", irq);	
+		pr_err("up irq %d recved but EnQueueF2sm wrong! \n", irq);	
 
 	the_f2sm_ram_dev_up.cur_io_buf_index = UP_QUEUE_AVAILABLE;
 	
@@ -189,6 +193,8 @@ static irqreturn_t accident_stop_interrupt_handler(int irq, void *data)
 	which_interrput_up = ACCIDENT_STOP;
 	print_state_up = DONE;
 	print_state_down = DONE;
+
+	kill_fasync(&g_sigio_list, SIGIO, POLL_IN);
 	
 	spin_unlock(&g_irq_lock);
 	
@@ -200,6 +206,22 @@ static irqreturn_t accident_stop_interrupt_handler(int irq, void *data)
 
 	return IRQ_HANDLED;
 }
+
+
+static irqreturn_t alarm_non_stop_interrupt_handler(int irq, void *data)
+{
+	//pr_info("come the alarm interrupt\n");
+	
+	spin_lock(&g_irq_lock);
+
+	kill_fasync(&g_sigio_list, SIGIO, POLL_IN);
+	
+	spin_unlock(&g_irq_lock);
+	
+
+	return IRQ_HANDLED;
+}
+
 
 
 /* 初始化上行驱动数据 */
@@ -215,7 +237,7 @@ static int up_dev_open(struct inode *ip, struct file *fp)
 		}
 	} else {
 		if (down_interruptible(&dev->sem)) {
-			pr_info("up_dev_open sem interrupted exit\n");
+			pr_err("up_dev_open sem interrupted exit\n");
 			return -EINTR;
 		}
 	}
@@ -253,7 +275,7 @@ static int down_dev_open(struct inode *ip, struct file *fp)
 		}
 	} else {
 		if (down_interruptible(&dev->sem)) {
-			pr_info("down_dev_open sem interrupted exit\n");
+			pr_err("down_dev_open sem interrupted exit\n");
 			return -EINTR;
 		}
 	}
@@ -291,7 +313,7 @@ static int up_dev_flush(struct file *fp, fl_owner_t id)
 		}
 	} else {
 		if (down_interruptible(&dev->sem)) {
-			pr_info("up_dev_release sem interrupted exit\n");
+			pr_err("up_dev_release sem interrupted exit\n");
 			return -EINTR;
 		}
 	}
@@ -326,7 +348,7 @@ static int down_dev_flush(struct file *fp, fl_owner_t id)
 		}
 	} else {
 		if (down_interruptible(&dev->sem)) {
-			pr_info("down_dev_release sem interrupted exit\n");
+			pr_err("down_dev_release sem interrupted exit\n");
 			return -EINTR;
 		}
 	}
@@ -766,7 +788,7 @@ static long up_dev_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 		}
 	} else {	
 		if (down_interruptible(&dev->sem)) {
-			pr_info("up_dev_ioctl sem interrupted exit\n");
+			pr_err("up_dev_ioctl sem interrupted exit\n");
 			return -EINTR;
 		}
 	}
@@ -814,7 +836,7 @@ static long down_dev_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 		}
 	} else {	
 		if (down_interruptible(&dev->sem)) {
-			pr_info("down_dev_ioctl sem interrupted exit\n");
+			pr_err("down_dev_ioctl sem interrupted exit\n");
 			return -EINTR;
 		}
 	}
@@ -988,6 +1010,34 @@ static __poll_t down_dev_poll(struct file *fp, struct poll_table_struct *wait)
 }
 
 
+static int down_dev_fasync(int fd, struct file *fp, int onflag)
+{
+	int ret;
+	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_down;
+
+	/* 如果是非阻塞 */
+	if (fp->f_flags & O_NONBLOCK) {
+		if (down_trylock(&dev->sem)) {
+			pr_err("down_dev_fasync get sem failed, try again\n");
+			return -EAGAIN;
+		}
+	} else {	
+		if (down_interruptible(&dev->sem)) {
+			pr_err("down_dev_fasync sem interrupted exit\n");
+			return -EINTR;
+		}
+	}
+
+	spin_lock(&g_irq_lock);
+	ret = fasync_helper(fd, fp, onflag, &g_sigio_list);
+	spin_unlock(&g_irq_lock);
+
+	up(&dev->sem);
+	return ret;	
+}
+
+
+
 static const struct file_operations up_dev_fops = {
 	.owner = THIS_MODULE,
 	.open = up_dev_open,
@@ -1013,6 +1063,7 @@ static const struct file_operations down_dev_fops = {
 	.read = down_dev_read,
 	.unlocked_ioctl = down_dev_ioctl,
 	.poll = down_dev_poll,
+	.fasync = down_dev_fasync,
 };
 
 static struct miscdevice down_dev_device = {
@@ -1056,8 +1107,7 @@ static int platform_probe(struct platform_device *pdev)
 
 	/* 获取下行dma中断的虚拟中断号 */
 	irq = platform_get_irq(pdev, 0);            
-	if (irq < 0) 
-	{
+	if (irq < 0) {
 		dev_err(&pdev->dev, "irq0(down) not available\n");
 		goto bad_exit_release_dev_data;
 	}
@@ -1065,31 +1115,34 @@ static int platform_probe(struct platform_device *pdev)
 
 	/* 获取上行dma中断的虚拟中断号 */
 	irq = platform_get_irq(pdev, 1); 
-	if (irq < 0) 
-	{
+	if (irq < 0) {
 		dev_err(&pdev->dev, "irq1(up) not available\n");
 		goto bad_exit_release_dev_data;
 	}
 	priv->mem1_irq = irq;	
 	
-	/* 获取结束打印中断的虚拟中断号 */
+	/* 获取打印中断的虚拟中断号 */
 	normal_stop_irq = platform_get_irq(pdev, 2);            
-	if (normal_stop_irq < 0) 
-	{
+	if (normal_stop_irq < 0) {
 		dev_err(&pdev->dev, "irq4(normal) not available\n");
 		goto bad_exit_release_dev_data;
 	}
 	accident_stop_irq = platform_get_irq(pdev, 3);            
-	if (accident_stop_irq < 0) 
-	{
+	if (accident_stop_irq < 0) {
 		dev_err(&pdev->dev, "irq5(accident) not available\n");
 		goto bad_exit_release_dev_data;
 	}	
- 
+	alarm_non_stop_irq = platform_get_irq(pdev, 4);
+	if (alarm_non_stop_irq < 0) {
+		dev_err(&pdev->dev, "irq6(alarm) not available\n");
+		goto bad_exit_release_dev_data;
+	}
+	
 	pr_info("down dma irq is %d\n", priv->mem0_irq);
 	pr_info("up dma irq is %d\n", priv->mem1_irq);
 	pr_info("normal stop irq is %d\n", normal_stop_irq);
 	pr_info("accident stop irq is %d\n", accident_stop_irq);
+	pr_info("alarm irq is %d\n", alarm_non_stop_irq);
 
 	/* Get reserved memory region from Device-tree */
 	np0 = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
@@ -1209,6 +1262,16 @@ static int platform_probe(struct platform_device *pdev)
 		pr_err("request irq5(accident) failed");
 		goto bad_exit_freeirq0_1_4;
 	}	
+	
+	ret_val = request_irq(alarm_non_stop_irq,
+			      alarm_non_stop_interrupt_handler,
+			      0,
+			      "alarm-non-stop-irq",
+			      NULL);
+	if (ret_val) {
+		pr_err("request irq6(alarm) failed");
+		goto bad_exit_freeirq0_1_4_5;
+	}	
 
 	ret_val = -EBUSY;
 
@@ -1227,12 +1290,12 @@ static int platform_probe(struct platform_device *pdev)
 	ret_val = misc_register(&up_dev_device);
 	if (ret_val != 0) {
 		pr_err("Could not register device \"up_dev\"...");
-		goto bad_exit_freeirq0_1_4_5;
+		goto bad_exit_freeirq0_1_4_5_6;
 	}
 	ret_val = misc_register(&down_dev_device);
 	if (ret_val != 0) {
 		pr_err("Could not register device \"down_dev\"...");
-		goto bad_exit_unregister_up_dev_and_freeirq0_1_4_5;
+		goto bad_exit_unregister_up_dev_and_freeirq0_1_4_5_6;
 	}	
 	
 	g_platform_probe_flag = 1;
@@ -1241,8 +1304,10 @@ static int platform_probe(struct platform_device *pdev)
 	return 0;
 
 
-bad_exit_unregister_up_dev_and_freeirq0_1_4_5:	
+bad_exit_unregister_up_dev_and_freeirq0_1_4_5_6:	
 	misc_deregister(&up_dev_device);
+bad_exit_freeirq0_1_4_5_6:
+	free_irq(alarm_non_stop_irq, priv);	
 bad_exit_freeirq0_1_4_5:
 	free_irq(accident_stop_irq, priv);
 bad_exit_freeirq0_1_4:
@@ -1298,6 +1363,7 @@ static int platform_remove(struct platform_device *pdev)
 	free_irq(priv->mem1_irq, priv);
 	free_irq(normal_stop_irq, NULL);
 	free_irq(accident_stop_irq, NULL);
+	free_irq(alarm_non_stop_irq, priv);	
 	
 	if (g_ioremap_addr_f2h) {
 		iounmap(g_ioremap_addr_f2h);

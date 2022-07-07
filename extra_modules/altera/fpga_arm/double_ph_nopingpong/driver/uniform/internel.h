@@ -6,6 +6,14 @@
 #include "fpga_regs.h"
 
 
+struct dev_data_st
+{
+    struct uio_info the_uio_info;
+    int mem0_irq;
+    int mem1_irq;
+};
+
+
 struct f2sm_buf_q
 {
 	int size;   
@@ -27,18 +35,6 @@ struct f2sm_ram_dev {
 	struct platform_device *pdev;
 };
 
-struct mem_ep
-{
-    char *mem_buf;
-    struct list_head entry;
-};
-
-struct dev_data_st
-{
-    struct uio_info the_uio_info;
-    int mem0_irq;
-    int mem1_irq;
-};
 
 
 #define UP_MEM_INDEX 0 
