@@ -188,14 +188,11 @@ static irqreturn_t accident_stop_interrupt_handler(int irq, void *data)
 	pr_info("come the accident interrupt\n");
 	
 	spin_lock(&g_irq_lock);
-
 	which_interrput_down = ACCIDENT_STOP;
 	which_interrput_up = ACCIDENT_STOP;
 	print_state_up = DONE;
 	print_state_down = DONE;
-
 	kill_fasync(&g_sigio_list, SIGIO, POLL_IN);
-	
 	spin_unlock(&g_irq_lock);
 	
 	/* 唤醒睡眠进程 */
@@ -210,15 +207,12 @@ static irqreturn_t accident_stop_interrupt_handler(int irq, void *data)
 
 static irqreturn_t alarm_non_stop_interrupt_handler(int irq, void *data)
 {
-	//pr_info("come the alarm interrupt\n");
+	pr_info("come the alarm interrupt\n");
 	
 	spin_lock(&g_irq_lock);
-
 	kill_fasync(&g_sigio_list, SIGIO, POLL_IN);
-	
 	spin_unlock(&g_irq_lock);
 	
-
 	return IRQ_HANDLED;
 }
 
@@ -333,7 +327,7 @@ static int up_dev_flush(struct file *fp, fl_owner_t id)
 
 static int up_dev_release(struct inode *ip, struct file *fp)
 {	
-	return 0;		
+	return 0;
 }
 
 static int down_dev_flush(struct file *fp, fl_owner_t id)
@@ -1015,7 +1009,6 @@ static int down_dev_fasync(int fd, struct file *fp, int onflag)
 	int ret;
 	struct f2sm_ram_dev *dev = &the_f2sm_ram_dev_down;
 
-	/* 如果是非阻塞 */
 	if (fp->f_flags & O_NONBLOCK) {
 		if (down_trylock(&dev->sem)) {
 			pr_err("down_dev_fasync get sem failed, try again\n");
@@ -1331,13 +1324,9 @@ bad_exit_iounmap:
     }
 bad_exit_release_mem_region:
 	if(priv->the_uio_info.mem[0].internal_addr)
-	{
 		priv->the_uio_info.mem[0].internal_addr = NULL;
-	}
 	if(priv->the_uio_info.mem[1].internal_addr)
-	{
 		priv->the_uio_info.mem[1].internal_addr = NULL;
-	}	
 bad_exit_release_dev_data:
 	kfree(priv);
 bad_exit_return:
@@ -1363,7 +1352,7 @@ static int platform_remove(struct platform_device *pdev)
 	free_irq(priv->mem1_irq, priv);
 	free_irq(normal_stop_irq, NULL);
 	free_irq(accident_stop_irq, NULL);
-	free_irq(alarm_non_stop_irq, priv);	
+	free_irq(alarm_non_stop_irq, NULL);	
 	
 	if (g_ioremap_addr_f2h) {
 		iounmap(g_ioremap_addr_f2h);

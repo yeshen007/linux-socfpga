@@ -41,14 +41,11 @@
 #define EXPAND_GPIO5	(EXPAND_OFFSET + 5)
 #define EXPAND_GPIO6	(EXPAND_OFFSET + 6)
 #define EXPAND_GPIO7	(EXPAND_OFFSET + 7)
-#define EXPAND_GPIO8	(EXPAND_OFFSET + 8)
-#define EXPAND_GPIO9	(EXPAND_OFFSET + 9)
-#define EXPAND_GPIO10	(EXPAND_OFFSET + 10)
-#define EXPAND_GPIO11	(EXPAND_OFFSET + 11)
-#define EXPAND_GPIO12	(EXPAND_OFFSET + 12)
-#define EXPAND_GPIO13	(EXPAND_OFFSET + 13)
-#define EXPAND_GPIO14	(EXPAND_OFFSET + 14)
-#define EXPAND_GPIO15	(EXPAND_OFFSET + 15)
+#define EXPAND_GPIO11	(EXPAND_OFFSET + 8)
+#define EXPAND_GPIO12	(EXPAND_OFFSET + 9)
+#define EXPAND_GPIO13	(EXPAND_OFFSET + 10)
+#define EXPAND_GPIO14	(EXPAND_OFFSET + 11)
+#define EXPAND_GPIO15	(EXPAND_OFFSET + 12)
 
 
 
@@ -155,6 +152,16 @@ int main(void)
 	if (ret != sizeof(descs)) 
 		printf("read gpio3 error!\n");
 	printf("1st gpio read: name: %s, value: %d\n", descs.name, descs.val);
+
+	/* 读取board_index */
+	descs.name = "board_index";		
+	descs.ind = BOARD_INDEX;
+	descs.dir = GPIO_DIR_NONE;
+	descs.val = GPIO_VAL_NONE;
+	ret = read(fd, &descs, sizeof(descs));
+	if (ret != sizeof(descs)) 
+		printf("read board_index error!\n");
+	printf("board_index gpio read: name: %s, value: %d\n", descs.name, descs.val);
 
 #endif
 

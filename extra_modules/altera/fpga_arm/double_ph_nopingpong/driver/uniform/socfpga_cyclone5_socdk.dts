@@ -116,12 +116,24 @@
 			label = "Boot_State";
 			gpios = <&portb 25 GPIO_ACTIVE_LOW>;
 		};
+		led2 {	
+			label = "BoardState";
+			gpios = <&ioexpander 8 GPIO_ACTIVE_HIGH>;
+		};     
+		led3 {
+			label = "ConnectState";
+			gpios = <&ioexpander 9 GPIO_ACTIVE_HIGH>;
+		};	
+		led4 {
+			label = "PrintState";
+			gpios = <&ioexpander 10 GPIO_ACTIVE_HIGH>;
+		};			
 	};	
 
 	gpios {
         compatible = "gpio_dev,driver-2.0";
 		hps-ngpio = <11>;
-		expand-ngpio = <16>;
+		expand-ngpio = <13>;
 		
         hps-gpios = 
 			<&portb 6 GPIO_ACTIVE_LOW>,		/* lock_chip_en */
@@ -131,6 +143,8 @@
 			<&portb 21 GPIO_ACTIVE_LOW>, 	/* reserve */ 
 			<&portb 22 GPIO_ACTIVE_LOW>,    /* ic_en */
 			<&portb 23 GPIO_ACTIVE_LOW>, 	/* board_index */  
+			//<&portb 24 GPIO_ACTIVE_LOW>,	/* FPGA_CFG */
+			//<&portb 25 GPIO_ACTIVE_LOW>,	/* Boot_State */
 			<&portb 26 GPIO_ACTIVE_LOW>,   	/* phy1_init */ 
 			<&portb 27 GPIO_ACTIVE_LOW>,    /* phy2_init */
 			<&portc 1 GPIO_ACTIVE_LOW>,   	/* pca9535_init */ 
@@ -145,15 +159,15 @@
 			<&ioexpander 5 GPIO_ACTIVE_HIGH>,
 			<&ioexpander 6 GPIO_ACTIVE_HIGH>,	
 			<&ioexpander 7 GPIO_ACTIVE_HIGH>,	
-			<&ioexpander 8 GPIO_ACTIVE_HIGH>,	
-			<&ioexpander 9 GPIO_ACTIVE_HIGH>,
-			<&ioexpander 10 GPIO_ACTIVE_HIGH>,	
+			//<&ioexpander 8 GPIO_ACTIVE_HIGH>,	
+			//<&ioexpander 9 GPIO_ACTIVE_HIGH>,
+			//<&ioexpander 10 GPIO_ACTIVE_HIGH>,	
 			<&ioexpander 11 GPIO_ACTIVE_HIGH>,
 			<&ioexpander 12 GPIO_ACTIVE_HIGH>,	
 			<&ioexpander 13 GPIO_ACTIVE_HIGH>,
 			<&ioexpander 14 GPIO_ACTIVE_HIGH>,	
 			<&ioexpander 15 GPIO_ACTIVE_HIGH>;			
-	};	
+	};		
 
 	regulator_3_3v: 3-3-v-regulator {
 		compatible = "regulator-fixed";
